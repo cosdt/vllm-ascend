@@ -112,9 +112,9 @@ fi
 echo 'vLLM yapf: Done'
 
 # Run mypy
-# echo 'vLLM mypy:'
-# tools/mypy.sh
-# echo 'vLLM mypy: Done'
+echo 'vLLM mypy:'
+tools/mypy.sh
+echo 'vLLM mypy: Done'
 
 
 # If git diff returns a file that is in the skip list, the file may be checked anyway:
