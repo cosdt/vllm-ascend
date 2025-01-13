@@ -6,7 +6,7 @@ from vllm.model_executor.layers.layernorm import RMSNorm
 
 
 def forward_oot(
-       self,
+    self,
     x: torch.Tensor,
     residual: Optional[torch.Tensor] = None,
 ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
