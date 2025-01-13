@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 import torch
 
 try:
-    import torch_npu  # noqa: F401
+    import torch_npu
 except ImportError:
-    print("Failed to import torch_npu.")
+    print("Failed to import torch_npu")
 
 from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
@@ -19,7 +19,7 @@ from vllm.attention.ops.paged_attn import (PagedAttention,
                                            PagedAttentionMetadata)
 
 if TYPE_CHECKING:
-    from vllm_ascend_plugin.model_runner import ModelInputForNPUBuilder
+    from vllm_ascend.model_runner import ModelInputForNPUBuilder
 
 SHARE_MASK_TRIL_PREFIX_CACHE = None
 SHARE_MASK_TRIL = None
@@ -70,7 +70,7 @@ class AscendAttentionBackend(AttentionBackend):
 
     @staticmethod
     def copy_blocks(
-        kv_caches: List[torch.Tensor],
+          kv_caches: List[torch.Tensor],
         src_to_dists: torch.Tensor,
     ) -> None:
         src_indices = src_to_dists[:, 0]

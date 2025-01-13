@@ -17,4 +17,5 @@ run_mypy() {
 }
 
 run_mypy # Note that this is less strict than CI
-run_mypy vllm_ascend_plugin
+run_mypy vllm_ascend
+run_mypy examples
