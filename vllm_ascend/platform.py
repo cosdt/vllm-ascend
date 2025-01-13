@@ -4,9 +4,9 @@ from typing import Optional, Tuple
 import torch
 
 try:
-    import torch_npu
+    import torch_npu  # noqa: F401
 except ImportError:
-    print("Failed to import torch_npu")
+    print("Failed to import torch_npu.")
 
 from vllm.config import VllmConfig
 from vllm.platforms import Platform

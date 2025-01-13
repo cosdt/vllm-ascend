@@ -5,9 +5,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 import torch
 
 try:
-    import torch_npu
+    import torch_npu  # noqa: F401
 except ImportError:
-    print("Failed to import torch_npu")
+    print("Failed to import torch_npu.")
 
 from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
@@ -70,7 +70,7 @@ class AscendAttentionBackend(AttentionBackend):
 
     @staticmethod
     def copy_blocks(
-          kv_caches: List[torch.Tensor],
+        kv_caches: List[torch.Tensor],
         src_to_dists: torch.Tensor,
     ) -> None:
         src_indices = src_to_dists[:, 0]
