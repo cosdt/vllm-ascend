@@ -1,4 +1,5 @@
 import dataclasses
+import math
 from typing import Any, Dict, List, Optional, Set, Type
 
 import torch
@@ -14,7 +15,7 @@ from vllm.prompt_adapter.layers import PromptAdapterMapping
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
 from vllm.sequence import SequenceGroupMetadata
-from vllm.utils import flatten_2d_lists, make_tensor_with_pad
+from vllm.utils import flatten_2d_lists, make_tensor_with_pad, get_kv_cache_torch_dtype
 from vllm.worker.model_runner import (ModelInputForGPU,
                                       ModelInputForGPUBuilder,
                                       ModelInputForGPUWithSamplingMetadata,
@@ -105,41 +106,16 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
         # vLLM uses cuda graph only for decoding requests.
         cuda_graph_pad_size = -1
 
-        if self.inter_data_list[0].is_prompt:
-            input_tokens_tensor = make_tensor_with_pad(
-                input_tokens, 0, dtype=torch.int, device=self.runner.device)
-            input_tokens_tensor = torch.flatten(input_tokens_tensor)
-            if mrope_input_positions is not None:
-                mrope_input_positions_tensor = make_tensor_with_pad(
-                    mrope_input_positions,
-                    0,
-                    dtype=torch.int,
-                    device=self.runner.device)
-                input_positions_tensor = torch.tensor(
-                    mrope_input_positions_tensor,
-                    dtype=torch.long,
-                    device=self.runner.device)
-            else:
-                input_positions_tensor = make_tensor_with_pad(
-                    input_positions,
-                    0,
-                    dtype=torch.int,
-                    device=self.runner.device)
-                input_positions_tensor = torch.flatten(input_positions_tensor)
-
-            max_seq_len = max(seq_lens)
-            seq_lens = len(seq_lens) * [max_seq_len]
-        else:
-            input_tokens_tensor = torch.tensor(flatten_2d_lists(input_tokens),
+        input_tokens_tensor = torch.tensor(flatten_2d_lists(input_tokens),
                                                dtype=torch.long,
                                                device=self.runner.device)
-            if mrope_input_positions is not None:
-                input_positions_tensor = torch.tensor(
+        if mrope_input_positions is not None:
+            input_positions_tensor = torch.tensor(
                     mrope_input_positions,
                     dtype=torch.long,
                     device=self.runner.device)
-            else:
-                input_positions_tensor = torch.tensor(
+        else:
+            input_positions_tensor = torch.tensor(
                     flatten_2d_lists(input_positions),
                     dtype=torch.long,
                     device=self.runner.device)
@@ -444,6 +420,50 @@ class NPUModelRunner(ModelRunner):
                 attn_backend=self.attn_backend,
             )
         return model_input
+    
+    def create_dummy_kv_cache(self, attn_metadata, input_ids):
+        """
+        Creates a dummy key-value cache for attention during warmup phase.
+
+        Args:
+            attn_metadata (AttentionMetadata): Metadata related to attention for the current batch.
+            input_ids (torch.Tensor): Input token IDs for the current batch.
+
+        Returns:
+            Tuple: A tuple containing the key-value cache, block tables, and slot mappings.
+        """        
+        dummy_block_size = 128
+        max_s = max(attn_metadata.prefill_metadata.seq_lens)
+        max_need_block = math.ceil(max_s / dummy_block_size)
+        batch_size = len(attn_metadata.prefill_metadata.seq_lens)
+
+        head_size = self.model_config.get_head_size()
+        num_kv_heads = self.model_config.get_num_kv_heads(self.parallel_config)
+        dummy_kv_cache_shape = self.attn_backend.get_kv_cache_shape(self.dummy_block_num, self.dummy_block_size, num_kv_heads, head_size)
+        num_layers = self.model_config.get_num_layers(self.parallel_config)
+        kv_cache_torch_dtype = get_kv_cache_torch_dtype(self.kv_cache_dtype, self.model_config.dtype)
+        kv_cache = [
+            torch.empty(
+                size=dummy_kv_cache_shape,
+                dtype=kv_cache_torch_dtype,
+                device="npu",
+            )
+            for _ in range(num_layers)
+        ]
+
+        block_tables = torch.zeros(batch_size, max_need_block, dtype=torch.int32).to(device="npu", non_blocking=True)
+        slot = [i for i in range(dummy_block_size)]
+        slots = []
+        warm_up_len = len(input_ids)
+        while warm_up_len > 0:
+            if warm_up_len > dummy_block_size:
+                slots.extend(slot)
+                warm_up_len -= dummy_block_size
+            else:
+                slots.extend(slot[:warm_up_len])
+                warm_up_len = 0
+        slots = torch.tensor(slots, dtype=torch.int32).to(device="npu", non_blocking=True)
+        return kv_cache, block_tables, slots
 
     @current_platform.inference_mode()
     def profile_run(self) -> None:
@@ -500,10 +520,12 @@ class NPUModelRunner(ModelRunner):
                 max_num_seqs = 1
 
         batch_size = 0
+        max_seq_len = 0
         for group_id in range(max_num_seqs):
             seq_len = (max_num_batched_tokens // max_num_seqs +
                        (group_id < max_num_batched_tokens % max_num_seqs))
             batch_size += seq_len
+            max_seq_len = max(max_seq_len, seq_len)
 
             dummy_data = self.input_registry \
                 .dummy_data_for_profiling(self.model_config,
@@ -523,22 +545,16 @@ class NPUModelRunner(ModelRunner):
             )
             seqs.append(seq)
 
+        self.dummy_block_size = 128
+        self.dummy_block_num = max_num_seqs * math.ceil(max_seq_len / self.dummy_block_size)
         # Run the model with the dummy inputs.
-        num_layers = self.model_config.get_num_layers(self.parallel_config)
-        # use an empty tensor instead of `None`` to force Dynamo to pass
-        # it by reference, rather by specializing on the value ``None``.
-        # the `dtype` argument does not matter, and we use `float32` as
-        # a placeholder (it has wide hardware support).
-        # it is important to create tensors inside the loop, rather than
-        # multiplying the list, to avoid Dynamo from treating them as
-        # tensor aliasing.
-        kv_caches = [
-            torch.tensor([], dtype=torch.float32, device=self.device)
-            for _ in range(num_layers)
-        ]
         finished_requests_ids = [seq.request_id for seq in seqs]
         model_input = self.prepare_model_input(
             seqs, finished_requests_ids=finished_requests_ids)
+        kv_caches, block_tables, slots = self.create_dummy_kv_cache(model_input.attn_metadata, model_input.input_tokens)
+        model_input.attn_metadata.prefill_metadata.block_tables = block_tables
+        model_input.attn_metadata.slot_mapping = slots
+        model_input.attn_metadata.dummy_kv_caches = kv_caches
         intermediate_tensors = None
         if not get_pp_group().is_first_rank:
             intermediate_tensors = self.model.make_empty_intermediate_tensors(

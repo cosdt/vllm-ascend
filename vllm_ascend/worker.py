@@ -131,6 +131,12 @@ class NPUWorker(Worker):
         # Execute a forward pass with dummy inputs to profile the memory usage
         # of the model.
         self.model_runner.profile_run()
+        # get the num of kv blocks used in warmup stage
+        dummy_block_num = self.model_runner.dummy_block_num if getattr(self.model_runner, "dummy_block_num", None) is not None \
+            else self.model_runner._base_model_runner.dummy_block_num
+        block_size = self.cache_config.block_size
+        dummy_block_size = 128
+        dummy_num_blocks = dummy_block_size // block_size * dummy_block_num
 
         # Calculate the number of blocks that can be allocated with the
         # profiled peak memory.
@@ -146,9 +152,10 @@ class NPUWorker(Worker):
             "not properly cleaned up before initializing the vLLM instance.")
 
         cache_block_size = self.get_cache_block_size_bytes()
-        num_npu_blocks = int(
-            (total_npu_memory * self.cache_config.gpu_memory_utilization -
-             peak_memory) // cache_block_size)
+        num_npu_blocks = (
+            int((total_npu_memory * self.cache_config.gpu_memory_utilization -
+             peak_memory) // cache_block_size) + dummy_num_blocks
+        )
         num_cpu_blocks = int(self.cache_config.swap_space_bytes //
                              cache_block_size)
         num_npu_blocks = max(num_npu_blocks, 0)
