@@ -11,7 +11,7 @@ except ImportError:
 
 from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
-from vllm.attention.backends.utils import (PAD_SLOT_ID, CommonAttentionState,
+from vllm.attention.backends.utils import (CommonAttentionState,
                                            CommonMetadataBuilder,
                                            compute_slot_mapping,
                                            compute_slot_mapping_start_idx,
@@ -148,10 +148,6 @@ class AscendAttentionBackend(AttentionBackend):
 class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     """Metadata for Ascendbackend.
         * modified from XFormersbackend
-    NOTE: Any python object stored here is not updated when it is
-    cuda-graph replayed. If you have values that need to be changed
-    dynamically, it should be stored in tensor. The tensor has to be
-    updated from `CUDAGraphRunner.forward` API.
     """
 
     # |---------- N-1 iteration --------|
@@ -171,11 +167,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     # Maximum sequence length among decode batch. 0 if there are prefill
     # requests only.
     max_decode_seq_len: int
-
-    # Whether or not if cuda graph is enabled.
-    # Cuda-graph is currently enabled for decoding only.
-    # TODO(woosuk): Move `use_cuda_graph` out since it's unrelated to attention.
-    use_cuda_graph: bool
 
     # (batch_size,). The sequence length per sequence. Sequence length means
     # the computed tokens + new tokens None if it is a decoding.
@@ -256,7 +247,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
             max_decode_seq_len=0,
             context_lens_tensor=context_lens_tensor,
             block_tables=block_tables,
-            use_cuda_graph=False,
             # Begin encoder & cross attn fields below...
             encoder_seq_lens=self.encoder_seq_lens,
             encoder_seq_lens_tensor=self.encoder_seq_lens_tensor,
@@ -301,7 +291,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
             max_decode_seq_len=self.max_decode_seq_len,
             context_lens_tensor=None,
             block_tables=block_tables,
-            use_cuda_graph=self.use_cuda_graph,
             # Begin encoder & cross attn fields below...
             encoder_seq_lens=self.encoder_seq_lens,
             encoder_seq_lens_tensor=self.encoder_seq_lens_tensor,
@@ -410,23 +399,22 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
                 inter_data.block_tables,
             )
 
-    def build(self, seq_lens: List[int], query_lens: List[int],
-              cuda_graph_pad_size: int, batch_size: int):
+    def build(
+        self, 
+        seq_lens: List[int], 
+        query_lens: List[int],
+    ):
         """Build attention metadata with on-device tensors.
 
         Args:
             seq_lens: The maybe padded sequence lengths of the input sequences.
             query_lens: The query lengths of the input sequences.
-            cuda_graph_pad_size: The padding size for cuda graph.
-                                 -1 if cuda graph is not used.
-            batch_size: The maybe padded batch size.
         """
         for inter_data in self.input_builder.inter_data_list:
             self._add_seq_group(inter_data,
                                 self.input_builder.chunked_prefill_enabled)
 
         device = self.runner.device
-        use_captured_graph = cuda_graph_pad_size != -1
 
         max_query_len = max(query_lens)
         max_prefill_seq_len = max(self.prefill_seq_lens, default=0)
@@ -441,26 +429,12 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
         else:
             self.attn_mask = None
 
-        if use_captured_graph:
-            self.slot_mapping.extend([PAD_SLOT_ID] * cuda_graph_pad_size)
-            self.block_tables.extend([] * cuda_graph_pad_size)
-            num_decode_tokens = batch_size
-
-            # The shape of graph_block_tables is
-            # [max batch size, max context len // block size].
-            input_block_tables = self.runner.graph_block_tables[:batch_size]
-            for i, block_table in enumerate(self.block_tables):
-                if block_table:
-                    input_block_tables[i, :len(block_table)] = block_table
-            block_tables = torch.from_numpy(input_block_tables).to(
-                device, non_blocking=True)
-        else:
-            block_tables = make_tensor_with_pad(
-                self.block_tables,
-                pad=0,
-                dtype=torch.int32,
-                device=device,
-            )
+        block_tables = make_tensor_with_pad(
+            self.block_tables,
+            pad=0,
+            dtype=torch.int32,
+            device=device,
+        )
         assert max_query_len > 0, "query_lens: {}".format(query_lens)
 
         assert device is not None
@@ -492,7 +466,6 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
             context_lens_tensor=context_lens_tensor,
             block_tables=block_tables,
             attn_mask=self.attn_mask,
-            use_cuda_graph=use_captured_graph,
         )
 
 
