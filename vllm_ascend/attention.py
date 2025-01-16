@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Type
 
 import torch
@@ -13,8 +13,8 @@ from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
 from vllm.attention.backends.utils import (PAD_SLOT_ID, CommonAttentionState,
                                            CommonMetadataBuilder,
-                                           compute_slot_mapping_start_idx,
                                            compute_slot_mapping,
+                                           compute_slot_mapping_start_idx,
                                            is_block_tables_empty)
 from vllm.attention.ops.paged_attn import PagedAttentionMetadata
 from vllm.multimodal import MultiModalPlaceholderMap
@@ -30,8 +30,8 @@ SHARE_MASK_TRIL = None
 def generate_attn_mask(max_seq_len: int, dtype=torch.float16):
     # lower triangle matrix
     mask_flag = torch.tril(
-        torch.ones((max_seq_len, max_seq_len), dtype=torch.bool)
-    ).view(max_seq_len, max_seq_len)
+        torch.ones((max_seq_len, max_seq_len),
+                   dtype=torch.bool)).view(max_seq_len, max_seq_len)
     # upper triangle matrix used to mark mask positions
     mask_flag = ~mask_flag
     # for fp16 dtype, the mask value should be set to -inf
@@ -39,30 +39,34 @@ def generate_attn_mask(max_seq_len: int, dtype=torch.float16):
         mask_value = torch.finfo(torch.float32).min
     else:
         mask_value = 1
-    attn_mask = torch.masked_fill(
-        torch.zeros(size=(max_seq_len, max_seq_len)), mask_flag, mask_value
-    ).to(dtype)
+    attn_mask = torch.masked_fill(torch.zeros(size=(max_seq_len, max_seq_len)),
+                                  mask_flag, mask_value).to(dtype)
     return attn_mask
 
 
 class AttentionMaskBuilder:
+
     def __init__(self, attn_mask: torch.Tensor):
         self._seq_len_cached = attn_mask.shape[0]
         self.attn_mask_cache = attn_mask
 
     @classmethod
-    def initialize_from_len(cls, max_seq_len: int, dtype: torch.dtype = torch.float16):
+    def initialize_from_len(cls,
+                            max_seq_len: int,
+                            dtype: torch.dtype = torch.float16):
         return cls(generate_attn_mask(max_seq_len, dtype))
 
-    def update_attn_cache(self, seqlen: int, dtype: torch.dtype, device: torch.device):
+    def update_attn_cache(self, seqlen: int, dtype: torch.dtype,
+                          device: torch.device):
         if seqlen > self._seq_len_cached or self.attn_mask_cache.dtype != dtype:
             self._seq_len_cached = seqlen
             self.attn_mask_cache = generate_attn_mask(seqlen, dtype)
         if self.attn_mask_cache.device != device:
             self.attn_mask_cache = self.attn_mask_cache.to(device)
 
-    # TODO: tensor continous problem might cause error in broadcast process, probably can't put this class in model runner
-    def get_attn_mask(self, max_seq_len: int, dtype: torch.dtype, device: torch.device):
+    # TODO: tensor continuous problem might cause error in broadcast process, probably can't put this class in model runner
+    def get_attn_mask(self, max_seq_len: int, dtype: torch.dtype,
+                      device: torch.device):
         self.update_attn_cache(max_seq_len, dtype, device)
         return self.attn_mask_cache[:max_seq_len, :max_seq_len].contiguous()
 
@@ -74,11 +78,9 @@ class AttentionMaskBuilder:
         device: torch.device,
     ):
         self.update_attn_cache(max_s, dtype, device)
-        return (
-            self.attn_mask_cache.index_select(0, input_lengths)[:, :max_s]
-            .view(-1, 1, max_s)
-            .contiguous()
-        )
+        return (self.attn_mask_cache.index_select(
+            0, input_lengths)[:, :max_s].view(-1, 1, max_s).contiguous())
+
 
 class AscendAttentionBackend(AttentionBackend):
 
@@ -192,7 +194,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     # Maximum query length in the batch. None for decoding.
     max_query_len: Optional[int] = None
 
-
     # Self-attention prefill/decode metadata cache
     _cached_prefill_metadata: Optional["AscendMetadata"] = None
     _cached_decode_metadata: Optional["AscendMetadata"] = None
@@ -243,7 +244,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
         seq_lens_tensor = (None if self.seq_lens_tensor is None else
                            self.seq_lens_tensor[:self.num_prefills])
         seq_lens_tensor_cpu = (None if self.seq_lens_tensor_cpu is None else
-                           self.seq_lens_tensor_cpu[:self.num_prefills])
+                               self.seq_lens_tensor_cpu[:self.num_prefills])
         context_lens_tensor = (None if self.context_lens_tensor is None else
                                self.context_lens_tensor[:self.num_prefills])
         block_tables = (None if self.block_tables is None else
@@ -292,7 +293,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
         seq_lens_tensor = (None if self.seq_lens_tensor is None else
                            self.seq_lens_tensor[self.num_prefills:])
         seq_lens_tensor_cpu = (None if self.seq_lens_tensor_cpu is None else
-                           self.seq_lens_tensor_cpu[self.num_prefills:])
+                               self.seq_lens_tensor_cpu[self.num_prefills:])
         block_tables = (None if self.block_tables is None else
                         self.block_tables[self.num_prefills:])
 
@@ -323,7 +324,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
 class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
 
     _metadata_cls = AscendMetadata
-    _attn_mask_builder = None # noqa
+    _attn_mask_builder = None  # noqa
 
     def __init__(self, input_builder):
         self.slot_mapping: List[int] = []
@@ -346,7 +347,8 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
 
         self.attn_mask = None
         if AscendMetadataBuilder._attn_mask_builder is None:
-            AscendMetadataBuilder._attn_mask_builder = AttentionMaskBuilder.initialize_from_len(128, self.input_builder.runner.model_config.dtype)
+            AscendMetadataBuilder._attn_mask_builder = AttentionMaskBuilder.initialize_from_len(
+                128, self.input_builder.runner.model_config.dtype)
 
     def _add_seq_group(
             self, inter_data: "ModelInputForNPUBuilder.InterDataForSeqGroup",
@@ -415,7 +417,7 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
                 self.block_size,
                 inter_data.block_tables,
             )
-    
+
     def build(self, seq_lens: List[int], query_lens: List[int],
               cuda_graph_pad_size: int, batch_size: int):
         """Build attention metadata with on-device tensors.
@@ -440,9 +442,10 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
         num_decode_tokens = self.num_decode_tokens
 
         if self.num_prefills > 0:
-            self.attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(max_prefill_seq_len,
-                                                             self.input_builder.runner.model_config.dtype,
-                                                             self.input_builder.runner.device)
+            self.attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(  # type: ignore
+                max_prefill_seq_len,
+                self.input_builder.runner.model_config.dtype,
+                self.input_builder.runner.device)
         else:
             self.attn_mask = None
 
@@ -532,7 +535,6 @@ class AscendAttentionBackendImpl(AttentionImpl):
         assert self.num_heads % self.num_kv_heads == 0
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
 
-
     def forward(
         self,
         query: torch.Tensor,
@@ -581,11 +583,17 @@ class AscendAttentionBackendImpl(AttentionImpl):
 
         key_cache, value_cache = kv_cache[0], kv_cache[1]
         num_blocks, block_size, _ = key_cache.shape
-        key_cache = key_cache.view(num_blocks, block_size, self.num_kv_heads, self.head_size)
-        value_cache = value_cache.view(num_blocks, block_size, self.num_kv_heads, self.head_size)
+        key_cache = key_cache.view(num_blocks, block_size, self.num_kv_heads,
+                                   self.head_size)
+        value_cache = value_cache.view(num_blocks, block_size,
+                                       self.num_kv_heads, self.head_size)
         slots = attn_metadata.slot_mapping
         torch_npu.npu_reshapecache(key, value, key_cache, value_cache, slots)
-        output = torch.empty(num_tokens, self.num_heads, self.head_size, dtype=query.dtype, device="npu")
+        output = torch.empty(num_tokens,
+                             self.num_heads,
+                             self.head_size,
+                             dtype=query.dtype,
+                             device="npu")
 
         if attn_metadata.num_prefills > 0:
 
@@ -593,36 +601,24 @@ class AscendAttentionBackendImpl(AttentionImpl):
                     or attn_metadata.block_tables.numel() == 0):
                 assert attn_metadata.attn_mask is not None
                 mask = attn_metadata.attn_mask
-                seq_lens_tensor_cpu = attn_metadata.prefill_metadata.seq_lens_tensor_cpu
+                seq_lens_tensor_cpu = attn_metadata.seq_lens_tensor_cpu
                 # FA for prefill phase
-                torch_npu.npu_selfattention(
-                    query,
-                    key,
-                    value,
-                    mask,
-                    seq_lens_tensor_cpu,
-                    self.scale,
-                    self.num_heads,
-                    self.num_kv_heads,
-                    output
-                )
+                torch_npu.npu_selfattention(query, key, value, mask,
+                                            seq_lens_tensor_cpu, self.scale,
+                                            self.num_heads, self.num_kv_heads,
+                                            output)
             else:
-                raise RuntimeError("Prefix cache and chunked prefill is currently not supported.")
+                raise RuntimeError(
+                    "Prefix cache and chunked prefill is currently not supported."
+                )
         elif attn_metadata.decode_metadata:
             # FA for decoding phase
             assert kv_cache is not None
             seq_lens_tensor_cpu = attn_metadata.decode_metadata.seq_lens_tensor_cpu
             block_tables = attn_metadata.decode_metadata.block_tables
-            torch_npu.npu_pagedattention(
-                query,
-                key_cache,
-                value_cache,
-                self.num_kv_heads,
-                self.num_heads,
-                self.scale,
-                block_tables,
-                seq_lens_tensor_cpu,
-                output
-            )
+            torch_npu.npu_pagedattention(query, key_cache, value_cache,
+                                         self.num_kv_heads, self.num_heads,
+                                         self.scale, block_tables,
+                                         seq_lens_tensor_cpu, output)
 
         return output.view(num_tokens, hidden_size)

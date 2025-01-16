@@ -107,18 +107,17 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
         cuda_graph_pad_size = -1
 
         input_tokens_tensor = torch.tensor(flatten_2d_lists(input_tokens),
-                                               dtype=torch.long,
-                                               device=self.runner.device)
+                                           dtype=torch.long,
+                                           device=self.runner.device)
         if mrope_input_positions is not None:
-            input_positions_tensor = torch.tensor(
-                    mrope_input_positions,
-                    dtype=torch.long,
-                    device=self.runner.device)
+            input_positions_tensor = torch.tensor(mrope_input_positions,
+                                                  dtype=torch.long,
+                                                  device=self.runner.device)
         else:
             input_positions_tensor = torch.tensor(
-                    flatten_2d_lists(input_positions),
-                    dtype=torch.long,
-                    device=self.runner.device)
+                flatten_2d_lists(input_positions),
+                dtype=torch.long,
+                device=self.runner.device)
 
         # Sequence and query lengths.
         seq_lens.extend([1] * cuda_graph_pad_size)
@@ -420,7 +419,7 @@ class NPUModelRunner(ModelRunner):
                 attn_backend=self.attn_backend,
             )
         return model_input
-    
+
     def _create_dummy_kv_cache(self, attn_metadata, input_ids):
         """
         Creates a dummy key-value cache for attention during warmup phase.
@@ -431,7 +430,7 @@ class NPUModelRunner(ModelRunner):
 
         Returns:
             Tuple: A tuple containing the key-value cache, block tables, and slot mappings.
-        """        
+        """
         dummy_block_size = 128
         max_s = max(attn_metadata.prefill_metadata.seq_lens)
         max_need_block = math.ceil(max_s / dummy_block_size)
@@ -439,19 +438,24 @@ class NPUModelRunner(ModelRunner):
 
         head_size = self.model_config.get_head_size()
         num_kv_heads = self.model_config.get_num_kv_heads(self.parallel_config)
-        dummy_kv_cache_shape = self.attn_backend.get_kv_cache_shape(self.dummy_block_num, self.dummy_block_size, num_kv_heads, head_size)
+        dummy_kv_cache_shape = self.attn_backend.get_kv_cache_shape(
+            self.dummy_block_num, self.dummy_block_size, num_kv_heads,
+            head_size)
         num_layers = self.model_config.get_num_layers(self.parallel_config)
-        kv_cache_torch_dtype = get_kv_cache_torch_dtype(self.kv_cache_dtype, self.model_config.dtype)
+        kv_cache_torch_dtype = get_kv_cache_torch_dtype(
+            self.kv_cache_dtype, self.model_config.dtype)
         kv_cache = [
             torch.empty(
                 size=dummy_kv_cache_shape,
                 dtype=kv_cache_torch_dtype,
                 device="npu",
-            )
-            for _ in range(num_layers)
+            ) for _ in range(num_layers)
         ]
 
-        block_tables = torch.zeros(batch_size, max_need_block, dtype=torch.int32).to(device="npu", non_blocking=True)
+        block_tables = torch.zeros(batch_size,
+                                   max_need_block,
+                                   dtype=torch.int32).to(device="npu",
+                                                         non_blocking=True)
         slot = [i for i in range(dummy_block_size)]
         slots = []
         warm_up_len = len(input_ids)
@@ -462,7 +466,8 @@ class NPUModelRunner(ModelRunner):
             else:
                 slots.extend(slot[:warm_up_len])
                 warm_up_len = 0
-        slots = torch.tensor(slots, dtype=torch.int32).to(device="npu", non_blocking=True)
+        slots = torch.tensor(slots, dtype=torch.int32).to(device="npu",
+                                                          non_blocking=True)
         return kv_cache, block_tables, slots
 
     @current_platform.inference_mode()
@@ -546,12 +551,14 @@ class NPUModelRunner(ModelRunner):
             seqs.append(seq)
 
         self.dummy_block_size = 128
-        self.dummy_block_num = max_num_seqs * math.ceil(max_seq_len / self.dummy_block_size)
+        self.dummy_block_num = max_num_seqs * math.ceil(
+            max_seq_len / self.dummy_block_size)
         # Run the model with the dummy inputs.
         finished_requests_ids = [seq.request_id for seq in seqs]
         model_input = self.prepare_model_input(
             seqs, finished_requests_ids=finished_requests_ids)
-        kv_caches, block_tables, slots = self._create_dummy_kv_cache(model_input.attn_metadata, model_input.input_tokens)
+        kv_caches, block_tables, slots = self._create_dummy_kv_cache(
+            model_input.attn_metadata, model_input.input_tokens)
         model_input.attn_metadata.prefill_metadata.block_tables = block_tables
         model_input.attn_metadata.slot_mapping = slots
         model_input.attn_metadata.dummy_kv_caches = kv_caches
