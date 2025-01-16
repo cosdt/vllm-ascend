@@ -15,8 +15,7 @@ def rope_forward_oot(
     self.cos_sin_cache = self.cos_sin_cache.to(query.device, dtype=query.dtype)
     if offsets is not None:
         raise NotImplementedError(
-            "Batched rotary embedding is currently not supported on NPU."
-        )
+            "Batched rotary embedding is currently not supported on NPU.")
     else:
         query = query.contiguous()
         key = key.contiguous()

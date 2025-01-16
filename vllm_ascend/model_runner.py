@@ -15,7 +15,7 @@ from vllm.prompt_adapter.layers import PromptAdapterMapping
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
 from vllm.sequence import SequenceGroupMetadata
-from vllm.utils import flatten_2d_lists, make_tensor_with_pad, get_kv_cache_torch_dtype
+from vllm.utils import flatten_2d_lists, get_kv_cache_torch_dtype
 from vllm.worker.model_runner import (ModelInputForGPU,
                                       ModelInputForGPUBuilder,
                                       ModelInputForGPUWithSamplingMetadata,
@@ -421,7 +421,7 @@ class NPUModelRunner(ModelRunner):
             )
         return model_input
     
-    def create_dummy_kv_cache(self, attn_metadata, input_ids):
+    def _create_dummy_kv_cache(self, attn_metadata, input_ids):
         """
         Creates a dummy key-value cache for attention during warmup phase.
 
@@ -551,7 +551,7 @@ class NPUModelRunner(ModelRunner):
         finished_requests_ids = [seq.request_id for seq in seqs]
         model_input = self.prepare_model_input(
             seqs, finished_requests_ids=finished_requests_ids)
-        kv_caches, block_tables, slots = self.create_dummy_kv_cache(model_input.attn_metadata, model_input.input_tokens)
+        kv_caches, block_tables, slots = self._create_dummy_kv_cache(model_input.attn_metadata, model_input.input_tokens)
         model_input.attn_metadata.prefill_metadata.block_tables = block_tables
         model_input.attn_metadata.slot_mapping = slots
         model_input.attn_metadata.dummy_kv_caches = kv_caches

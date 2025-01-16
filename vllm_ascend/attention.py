@@ -47,7 +47,6 @@ def generate_attn_mask(max_seq_len: int, dtype=torch.float16):
 
 class AttentionMaskBuilder:
     def __init__(self, attn_mask: torch.Tensor):
-        super().__init__()
         self._seq_len_cached = attn_mask.shape[0]
         self.attn_mask_cache = attn_mask
 
@@ -324,7 +323,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
 class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
 
     _metadata_cls = AscendMetadata
-    attn_mask_builder = None
+    _attn_mask_builder = None # noqa
 
     def __init__(self, input_builder):
         self.slot_mapping: List[int] = []
@@ -346,8 +345,8 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
         self.block_size = input_builder.block_size
 
         self.attn_mask = None
-        if AscendMetadataBuilder.attn_mask_builder is None:
-            AscendMetadataBuilder.attn_mask_builder = AttentionMaskBuilder.initialize_from_len(128, self.input_builder.runner.model_config.dtype)
+        if AscendMetadataBuilder._attn_mask_builder is None:
+            AscendMetadataBuilder._attn_mask_builder = AttentionMaskBuilder.initialize_from_len(128, self.input_builder.runner.model_config.dtype)
 
     def _add_seq_group(
             self, inter_data: "ModelInputForNPUBuilder.InterDataForSeqGroup",
@@ -441,7 +440,7 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
         num_decode_tokens = self.num_decode_tokens
 
         if self.num_prefills > 0:
-            self.attn_mask = AscendMetadataBuilder.attn_mask_builder.get_attn_mask(max_prefill_seq_len,
+            self.attn_mask = AscendMetadataBuilder._attn_mask_builder.get_attn_mask(max_prefill_seq_len,
                                                              self.input_builder.runner.model_config.dtype,
                                                              self.input_builder.runner.device)
         else:
@@ -533,8 +532,6 @@ class AscendAttentionBackendImpl(AttentionImpl):
         assert self.num_heads % self.num_kv_heads == 0
         self.num_queries_per_kv = self.num_heads // self.num_kv_heads
 
-        # used for prefill calculation
-        self.prefill_blocktable = torch.tensor([0], dtype=torch.int32, device="npu")
 
     def forward(
         self,
@@ -588,6 +585,7 @@ class AscendAttentionBackendImpl(AttentionImpl):
         value_cache = value_cache.view(num_blocks, block_size, self.num_kv_heads, self.head_size)
         slots = attn_metadata.slot_mapping
         torch_npu.npu_reshapecache(key, value, key_cache, value_cache, slots)
+        output = torch.empty(num_tokens, self.num_heads, self.head_size, dtype=query.dtype, device="npu")
 
         if attn_metadata.num_prefills > 0:
 
@@ -597,7 +595,6 @@ class AscendAttentionBackendImpl(AttentionImpl):
                 mask = attn_metadata.attn_mask
                 seq_lens_tensor_cpu = attn_metadata.prefill_metadata.seq_lens_tensor_cpu
                 # FA for prefill phase
-                output = torch.empty(num_tokens, self.num_heads, self.head_size, dtype=query.dtype, device="npu")
                 torch_npu.npu_selfattention(
                     query,
                     key,
@@ -609,43 +606,11 @@ class AscendAttentionBackendImpl(AttentionImpl):
                     self.num_kv_heads,
                     output
                 )
-                output = output.view(num_tokens, hidden_size)
             else:
-                # prefix-enabled attention
-                assert attn_type == AttentionType.DECODER, (
-                    "Only decoder-only models support prefix caching")
-                assert attn_metadata.seq_lens is not None
-                assert kv_cache is not None
-                query = query.view(query.shape[0], -1,
-                                   self.num_heads * self.head_size)
-                output = torch.zeros(query.shape,
-                                     device="npu",
-                                     dtype=query.dtype)
-                # TODO (Mengqing Cao): torch_npu.npu_incre_flash_attention
-                # support only when `S == 1`, OPTIMIZE ME when prefix caching
-                # is supported in torch-npu ops.
-                for i in range(query.shape[0]):
-                    # FA for prefill phase
-                    output[i] = torch_npu.npu_incre_flash_attention(
-                        query[i].unsqueeze(0),
-                        key_cache,
-                        value_cache,
-                        num_heads=self.num_heads,
-                        num_key_value_heads=self.num_kv_heads,
-                        scale_value=self.scale,
-                        input_layout="BSH",
-                        block_table=attn_metadata.block_tables,
-                        block_size=key_cache.
-                        shape[1],  # max val of block_size == 512
-                        actual_seq_lengths=attn_metadata.seq_lens,
-                    )
-                # [B,S,H] --> [B,H]
-                output = output.squeeze(1)
-
+                raise RuntimeError("Prefix cache and chunked prefill is currently not supported.")
         elif attn_metadata.decode_metadata:
             # FA for decoding phase
             assert kv_cache is not None
-            output = torch.empty(num_tokens, self.num_heads, self.head_size, dtype=query.dtype, device="npu")
             seq_lens_tensor_cpu = attn_metadata.decode_metadata.seq_lens_tensor_cpu
             block_tables = attn_metadata.decode_metadata.block_tables
             torch_npu.npu_pagedattention(
@@ -660,6 +625,4 @@ class AscendAttentionBackendImpl(AttentionImpl):
                 output
             )
 
-            # [B,S,H] --> [B,H]
-            output = output.view(num_tokens, hidden_size)
-        return output
+        return output.view(num_tokens, hidden_size)
