@@ -23,18 +23,15 @@ from vllm.utils import async_tensor_h2d, make_tensor_with_pad
 if TYPE_CHECKING:
     from vllm_ascend.model_runner import ModelInputForNPUBuilder
 
-SHARE_MASK_TRIL_PREFIX_CACHE = None
-SHARE_MASK_TRIL = None
-
 
 def generate_attn_mask(max_seq_len: int, dtype=torch.float16):
-    # lower triangle matrix
+    # Construct lower triangle matrix.
     mask_flag = torch.tril(
         torch.ones((max_seq_len, max_seq_len),
                    dtype=torch.bool)).view(max_seq_len, max_seq_len)
-    # upper triangle matrix used to mark mask positions
+    # Create upper triangle matrix used to mark mask positions.
     mask_flag = ~mask_flag
-    # for fp16 dtype, the mask value should be set to -inf
+    # For fp16 dtype, the mask value should be set to -inf.
     if dtype == torch.float16:
         mask_value = torch.finfo(torch.float32).min
     else:
@@ -64,7 +61,6 @@ class AttentionMaskBuilder:
         if self.attn_mask_cache.device != device:
             self.attn_mask_cache = self.attn_mask_cache.to(device)
 
-    # TODO: tensor continuous problem might cause error in broadcast process, probably can't put this class in model runner
     def get_attn_mask(self, max_seq_len: int, dtype: torch.dtype,
                       device: torch.device):
         self.update_attn_cache(max_seq_len, dtype, device)
@@ -211,15 +207,11 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     num_encoder_tokens: Optional[int] = None
 
     attn_mask: Optional[torch.Tensor] = None
-    pse_shift: Optional[torch.Tensor] = None
-    sparse_mode: int = 0
 
     # Cross-attention memory-mapping data structures: slot mapping
     # and block tables
     cross_slot_mapping: Optional[torch.Tensor] = None
     cross_block_tables: Optional[torch.Tensor] = None
-
-    # slot_mapping: Optional[torch.Tensor] = None
 
     @property
     def prefill_metadata(self) -> Optional["AscendMetadata"]:
@@ -228,7 +220,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
 
         if self._cached_prefill_metadata is not None:
             # Recover cached prefill-phase attention
-            # metadata structure
+            # metadata structure.
             return self._cached_prefill_metadata
 
         assert ((self.seq_lens is not None)
@@ -236,7 +228,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
         assert ((self.seq_lens_tensor is not None)
                 or (self.encoder_seq_lens_tensor is not None))
 
-        # Compute some attn_metadata fields which default to None
+        # Compute some attn_metadata fields which default to None.
         slot_mapping = (None if self.slot_mapping is None else
                         self.slot_mapping[:self.num_prefill_tokens])
         seq_lens = (None if self.seq_lens is None else
@@ -250,7 +242,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
         block_tables = (None if self.block_tables is None else
                         self.block_tables[:self.num_prefills])
 
-        # Construct & cache prefill-phase attention metadata structure
+        # Construct & cache prefill-phase attention metadata structure.
         self._cached_prefill_metadata = AscendMetadata(
             num_prefills=self.num_prefills,
             num_prefill_tokens=self.num_prefill_tokens,
@@ -282,12 +274,12 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
 
         if self._cached_decode_metadata is not None:
             # Recover cached decode-phase attention
-            # metadata structure
+            # metadata structure.
             return self._cached_decode_metadata
         assert ((self.seq_lens_tensor is not None)
                 or (self.encoder_seq_lens_tensor is not None))
 
-        # Compute some attn_metadata fields which default to None
+        # Compute some attn_metadata fields which default to None.
         slot_mapping = (None if self.slot_mapping is None else
                         self.slot_mapping[self.num_prefill_tokens:])
         seq_lens_tensor = (None if self.seq_lens_tensor is None else
@@ -297,7 +289,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
         block_tables = (None if self.block_tables is None else
                         self.block_tables[self.num_prefills:])
 
-        # Construct & cache decode-phase attention metadata structure
+        # Construct & cache decode-phase attention metadata structure.
         self._cached_decode_metadata = AscendMetadata(
             num_prefills=0,
             num_prefill_tokens=0,
@@ -570,13 +562,13 @@ class AscendAttentionBackendImpl(AttentionImpl):
                                       "encoder/decoder cross-attention "
                                       "are not implemented for "
                                       "PallasAttentionBackendImpl")
-        # view q k v to BSH
+        # View q k v to BSH.
         num_tokens, hidden_size = query.shape
         query = query.view(-1, self.num_heads, self.head_size)
         key = key.view(-1, self.num_kv_heads, self.head_size)
         value = value.view(-1, self.num_kv_heads, self.head_size)
 
-        # warm up stage
+        # Get dummy kv caches in warm up stage.
         if kv_cache.numel() == 0:
             assert getattr(attn_metadata, "dummy_kv_caches", None) is not None
             kv_cache = attn_metadata.dummy_kv_caches[0]
@@ -602,7 +594,6 @@ class AscendAttentionBackendImpl(AttentionImpl):
                 assert attn_metadata.attn_mask is not None
                 mask = attn_metadata.attn_mask
                 seq_lens_tensor_cpu = attn_metadata.seq_lens_tensor_cpu
-                # FA for prefill phase
                 torch_npu.npu_selfattention(query, key, value, mask,
                                             seq_lens_tensor_cpu, self.scale,
                                             self.num_heads, self.num_kv_heads,
@@ -612,7 +603,6 @@ class AscendAttentionBackendImpl(AttentionImpl):
                     "Prefix cache and chunked prefill is currently not supported."
                 )
         elif attn_metadata.decode_metadata:
-            # FA for decoding phase
             assert kv_cache is not None
             seq_lens_tensor_cpu = attn_metadata.decode_metadata.seq_lens_tensor_cpu
             block_tables = attn_metadata.decode_metadata.block_tables

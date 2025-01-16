@@ -131,7 +131,7 @@ class NPUWorker(Worker):
         # Execute a forward pass with dummy inputs to profile the memory usage
         # of the model.
         self.model_runner.profile_run()
-        # get the num of kv blocks used in warmup stage
+        # Get the number of kv blocks used in warmup stage.
         dummy_block_num = self.model_runner.dummy_block_num if getattr(self.model_runner, "dummy_block_num", None) is not None \
             else self.model_runner._base_model_runner.dummy_block_num
         block_size = self.cache_config.block_size
