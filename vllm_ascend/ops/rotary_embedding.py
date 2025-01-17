@@ -18,6 +18,7 @@ def rope_forward_oot(
         raise NotImplementedError(
             "Batched rotary embedding is currently not supported on NPU.")
     else:
+        # TODO: Remove the contiguous in the future.
         query = query.contiguous()
         key = key.contiguous()
         torch_npu.npu_rope(

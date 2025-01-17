@@ -31,7 +31,8 @@ def generate_attn_mask(max_seq_len: int, dtype=torch.float16):
                    dtype=torch.bool)).view(max_seq_len, max_seq_len)
     # Create upper triangle matrix used to mark mask positions.
     mask_flag = ~mask_flag
-    # For fp16 dtype, the mask value should be set to -inf.
+    # Currently for fp16 dtype, the mask value should be set to -inf. 
+    # TODO: Eliminate this part in the future.
     if dtype == torch.float16:
         mask_value = torch.finfo(torch.float32).min
     else:
@@ -172,6 +173,7 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     # the computed tokens + new tokens None if it is a decoding.
     seq_lens: Optional[List[int]] = None
     # seq_lens stored as a cpu tensor.
+    # TODO: Remove this in the future.
     seq_lens_tensor_cpu: Optional[torch.Tensor] = None
 
     # (batch_size,) A tensor of context lengths (tokens that are computed
@@ -572,8 +574,9 @@ class AscendAttentionBackendImpl(AttentionImpl):
                                             self.num_heads, self.num_kv_heads,
                                             output)
             else:
+                # TODO: Will support prefix cache and chunked prefill soon.
                 raise RuntimeError(
-                    "Prefix cache and chunked prefill is currently not supported."
+                    "Prefix cache and chunked prefill are currently not supported."
                 )
         elif attn_metadata.decode_metadata:
             assert kv_cache is not None
