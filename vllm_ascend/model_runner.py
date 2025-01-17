@@ -1,24 +1,28 @@
 import dataclasses
-from typing import Any, Dict, List, Optional, Set, Type
+import math
+from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import torch
 import torch.distributed
-from vllm.distributed import get_pp_group
+from vllm.distributed import get_kv_transfer_group, get_pp_group
+from vllm.forward_context import set_forward_context
 from vllm.logger import init_logger
 from vllm.lora.layers import LoRAMapping
 from vllm.lora.request import LoRARequest
 from vllm.model_executor import SamplingMetadata
+from vllm.model_executor.layers.sampler import SamplerOutput
 from vllm.multimodal import MultiModalKwargs, MultiModalPlaceholderMap
 from vllm.platforms import current_platform
 from vllm.prompt_adapter.layers import PromptAdapterMapping
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
-from vllm.sequence import SequenceGroupMetadata
-from vllm.utils import flatten_2d_lists, make_tensor_with_pad
+from vllm.sequence import IntermediateTensors, SequenceGroupMetadata
+from vllm.utils import flatten_2d_lists, get_kv_cache_torch_dtype
 from vllm.worker.model_runner import (ModelInputForGPU,
                                       ModelInputForGPUBuilder,
                                       ModelInputForGPUWithSamplingMetadata,
                                       ModelRunner)
+from vllm.worker.model_runner_base import dump_input_when_exception
 
 logger = init_logger(__name__)
 
@@ -98,58 +102,21 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
             for data in self.inter_data_list
         }
 
-        batch_size = len(input_tokens)
-
-        # If cuda graph can be used, pad tensors accordingly.
-        # See `capture_model` API for more details.
-        # vLLM uses cuda graph only for decoding requests.
-        cuda_graph_pad_size = -1
-
-        if self.inter_data_list[0].is_prompt:
-            input_tokens_tensor = make_tensor_with_pad(
-                input_tokens, 0, dtype=torch.int, device=self.runner.device)
-            input_tokens_tensor = torch.flatten(input_tokens_tensor)
-            if mrope_input_positions is not None:
-                mrope_input_positions_tensor = make_tensor_with_pad(
-                    mrope_input_positions,
-                    0,
-                    dtype=torch.int,
-                    device=self.runner.device)
-                input_positions_tensor = torch.tensor(
-                    mrope_input_positions_tensor,
-                    dtype=torch.long,
-                    device=self.runner.device)
-            else:
-                input_positions_tensor = make_tensor_with_pad(
-                    input_positions,
-                    0,
-                    dtype=torch.int,
-                    device=self.runner.device)
-                input_positions_tensor = torch.flatten(input_positions_tensor)
-
-            max_seq_len = max(seq_lens)
-            seq_lens = len(seq_lens) * [max_seq_len]
+        input_tokens_tensor = torch.tensor(flatten_2d_lists(input_tokens),
+                                           dtype=torch.long,
+                                           device=self.runner.device)
+        if mrope_input_positions is not None:
+            input_positions_tensor = torch.tensor(mrope_input_positions,
+                                                  dtype=torch.long,
+                                                  device=self.runner.device)
         else:
-            input_tokens_tensor = torch.tensor(flatten_2d_lists(input_tokens),
-                                               dtype=torch.long,
-                                               device=self.runner.device)
-            if mrope_input_positions is not None:
-                input_positions_tensor = torch.tensor(
-                    mrope_input_positions,
-                    dtype=torch.long,
-                    device=self.runner.device)
-            else:
-                input_positions_tensor = torch.tensor(
-                    flatten_2d_lists(input_positions),
-                    dtype=torch.long,
-                    device=self.runner.device)
-
-        # Sequence and query lengths.
-        seq_lens.extend([1] * cuda_graph_pad_size)
+            input_positions_tensor = torch.tensor(
+                flatten_2d_lists(input_positions),
+                dtype=torch.long,
+                device=self.runner.device)
 
         # Attention metadata.
-        attn_metadata = self.attn_metadata_builder.build(
-            seq_lens, query_lens, cuda_graph_pad_size, batch_size)
+        attn_metadata = self.attn_metadata_builder.build(seq_lens, query_lens)
 
         # LoRA data.
         lora_requests = set()
@@ -161,7 +128,6 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
                 flatten_2d_lists(inter_data.lora_index_mapping)
                 for inter_data in self.inter_data_list
             ])
-            lora_index_mapping.extend([0] * cuda_graph_pad_size)
             lora_prompt_mapping = flatten_2d_lists([
                 flatten_2d_lists(inter_data.lora_prompt_mapping)
                 for inter_data in self.inter_data_list
@@ -182,7 +148,6 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
                 inter_data.prompt_adapter_index_mapping
                 for inter_data in self.inter_data_list
             ])
-            prompt_adapter_index_mapping.extend([0] * cuda_graph_pad_size)
             prompt_adapter_prompt_mapping = flatten_2d_lists([
                 inter_data.prompt_adapter_prompt_mapping
                 for inter_data in self.inter_data_list
@@ -445,6 +410,56 @@ class NPUModelRunner(ModelRunner):
             )
         return model_input
 
+    def _create_dummy_kv_cache(self, attn_metadata, input_ids):
+        """
+        Creates a dummy key-value cache for attention during warmup phase.
+
+        Args:
+            attn_metadata (AttentionMetadata): Metadata related to attention for the current batch.
+            input_ids (torch.Tensor): Input token IDs for the current batch.
+
+        Returns:
+            Tuple: A tuple containing the key-value cache, block tables, and slot mappings.
+        """
+        dummy_block_size = 128
+        max_s = max(attn_metadata.prefill_metadata.seq_lens)
+        max_need_block = math.ceil(max_s / dummy_block_size)
+        batch_size = len(attn_metadata.prefill_metadata.seq_lens)
+
+        head_size = self.model_config.get_head_size()
+        num_kv_heads = self.model_config.get_num_kv_heads(self.parallel_config)
+        dummy_kv_cache_shape = self.attn_backend.get_kv_cache_shape(
+            self.dummy_block_num, self.dummy_block_size, num_kv_heads,
+            head_size)
+        num_layers = self.model_config.get_num_layers(self.parallel_config)
+        kv_cache_torch_dtype = get_kv_cache_torch_dtype(
+            self.kv_cache_dtype, self.model_config.dtype)
+        kv_cache = [
+            torch.empty(
+                size=dummy_kv_cache_shape,
+                dtype=kv_cache_torch_dtype,
+                device="npu",
+            ) for _ in range(num_layers)
+        ]
+
+        block_tables = torch.zeros(batch_size,
+                                   max_need_block,
+                                   dtype=torch.int32).to(device="npu",
+                                                         non_blocking=True)
+        slot = [i for i in range(dummy_block_size)]
+        slots = []
+        warm_up_len = len(input_ids)
+        while warm_up_len > 0:
+            if warm_up_len > dummy_block_size:
+                slots.extend(slot)
+                warm_up_len -= dummy_block_size
+            else:
+                slots.extend(slot[:warm_up_len])
+                warm_up_len = 0
+        slots = torch.tensor(slots, dtype=torch.int32).to(device="npu",
+                                                          non_blocking=True)
+        return kv_cache, block_tables, slots
+
     @current_platform.inference_mode()
     def profile_run(self) -> None:
         # Enable top-k sampling to reflect the accurate memory usage.
@@ -500,10 +515,12 @@ class NPUModelRunner(ModelRunner):
                 max_num_seqs = 1
 
         batch_size = 0
+        max_seq_len = 0
         for group_id in range(max_num_seqs):
             seq_len = (max_num_batched_tokens // max_num_seqs +
                        (group_id < max_num_batched_tokens % max_num_seqs))
             batch_size += seq_len
+            max_seq_len = max(max_seq_len, seq_len)
 
             dummy_data = self.input_registry \
                 .dummy_data_for_profiling(self.model_config,
@@ -523,22 +540,18 @@ class NPUModelRunner(ModelRunner):
             )
             seqs.append(seq)
 
+        self.dummy_block_size = 128
+        self.dummy_block_num = max_num_seqs * math.ceil(
+            max_seq_len / self.dummy_block_size)
         # Run the model with the dummy inputs.
-        num_layers = self.model_config.get_num_layers(self.parallel_config)
-        # use an empty tensor instead of `None`` to force Dynamo to pass
-        # it by reference, rather by specializing on the value ``None``.
-        # the `dtype` argument does not matter, and we use `float32` as
-        # a placeholder (it has wide hardware support).
-        # it is important to create tensors inside the loop, rather than
-        # multiplying the list, to avoid Dynamo from treating them as
-        # tensor aliasing.
-        kv_caches = [
-            torch.tensor([], dtype=torch.float32, device=self.device)
-            for _ in range(num_layers)
-        ]
         finished_requests_ids = [seq.request_id for seq in seqs]
         model_input = self.prepare_model_input(
             seqs, finished_requests_ids=finished_requests_ids)
+        kv_caches, block_tables, slots = self._create_dummy_kv_cache(
+            model_input.attn_metadata, model_input.input_tokens)
+        model_input.attn_metadata.prefill_metadata.block_tables = block_tables
+        model_input.attn_metadata.slot_mapping = slots
+        model_input.attn_metadata.dummy_kv_caches = kv_caches
         intermediate_tensors = None
         if not get_pp_group().is_first_rank:
             intermediate_tensors = self.model.make_empty_intermediate_tensors(
@@ -556,6 +569,163 @@ class NPUModelRunner(ModelRunner):
         """
         pass
 
+    @torch.inference_mode()
+    @dump_input_when_exception(exclude_args=[0], exclude_kwargs=["self"])
+    def execute_model(
+        self,
+        model_input: ModelInputForGPUWithSamplingMetadata,
+        kv_caches: List[torch.Tensor],
+        intermediate_tensors: Optional[IntermediateTensors] = None,
+        num_steps: int = 1,
+    ) -> Optional[Union[List[SamplerOutput], IntermediateTensors]]:
+        if num_steps > 1:
+            raise ValueError("num_steps > 1 is not supported in ModelRunner")
+
+        if self.lora_config:
+            assert model_input.lora_requests is not None
+            assert model_input.lora_mapping is not None
+            self.set_active_loras(model_input.lora_requests,
+                                  model_input.lora_mapping)
+
+        if self.prompt_adapter_config:
+            assert model_input.prompt_adapter_requests is not None
+            assert model_input.prompt_adapter_mapping is not None
+            self.set_active_prompt_adapters(
+                model_input.prompt_adapter_requests,
+                model_input.prompt_adapter_mapping)
+
+        self.attn_state.begin_forward(model_input)
+
+        assert model_input.attn_metadata is not None
+        # TODO(andoorve): We can remove this once all
+        # virtual engines share the same kv cache.
+        virtual_engine = model_input.virtual_engine
+        model_executable = self.model
+
+        # Receive KV cache in distributed KV cache transfer setting
+        # In disagg prefill setting, it will also recv hidden states and bypass
+        # model forwarding
+        # In KV cache database setting, it will change the model input so that
+        # we can skip prefilling on tokens that successfully received KV caches
+        # NOTE: The receive operation is blocking
+        bypass_model_exec = False
+        if self.need_recv_kv(model_input, kv_caches):
+            hidden_or_intermediate_states, bypass_model_exec, model_input = \
+                get_kv_transfer_group().recv_kv_caches_and_hidden_states(
+                    # model is used to know which layer the current worker
+                    # is working on, so that we can receive KV for only those
+                    # layers.
+                    model_executable,
+                    model_input,
+                    kv_caches=kv_caches
+                )
+
+        multi_modal_kwargs = model_input.multi_modal_kwargs or {}
+        seqlen_agnostic_kwargs = {
+            "finished_requests_ids": model_input.finished_requests_ids,
+            "request_ids_to_seq_ids": model_input.request_ids_to_seq_ids,
+        } if self.has_inner_state else {}
+        if (self.observability_config is not None
+                and self.observability_config.collect_model_forward_time):
+            model_forward_start = torch.npu.Event(enable_timing=True)
+            model_forward_end = torch.npu.Event(enable_timing=True)
+            model_forward_start.record()
+
+        if not bypass_model_exec:
+            with set_forward_context(model_input.attn_metadata,
+                                     self.vllm_config, virtual_engine):
+                hidden_or_intermediate_states = model_executable(
+                    input_ids=model_input.input_tokens,
+                    positions=model_input.input_positions,
+                    kv_caches=kv_caches,
+                    attn_metadata=model_input.attn_metadata,
+                    intermediate_tensors=intermediate_tensors,
+                    **MultiModalKwargs.as_kwargs(multi_modal_kwargs,
+                                                 device=self.device),
+                    **seqlen_agnostic_kwargs)
+
+        if (self.observability_config is not None
+                and self.observability_config.collect_model_forward_time):
+            model_forward_end.record()
+
+        # Sending KV cache in distributed KV cache transfer setting
+        # NOTE: the send operation is non-blocking
+        if self.need_send_kv(model_input, kv_caches):
+            get_kv_transfer_group().send_kv_caches_and_hidden_states(
+                # model_executable is used to know which layer the current
+                # worker is working on, so that we can send KV for only those
+                # layers.
+                model_executable,
+                model_input,
+                kv_caches,
+                hidden_or_intermediate_states,
+            )
+
+        # Compute the logits in the last pipeline stage.
+        if not get_pp_group().is_last_rank:
+            if (self.is_driver_worker
+                    and hidden_or_intermediate_states is not None
+                    and isinstance(hidden_or_intermediate_states,
+                                   IntermediateTensors)
+                    and self.observability_config is not None
+                    and self.observability_config.collect_model_forward_time):
+                model_forward_end.synchronize()
+                model_forward_time = model_forward_start.elapsed_time(
+                    model_forward_end)
+                orig_model_forward_time = 0.0
+                if intermediate_tensors is not None:
+                    orig_model_forward_time = intermediate_tensors.tensors.get(
+                        "model_forward_time", torch.tensor(0.0)).item()
+                hidden_or_intermediate_states.tensors["model_forward_time"] = (
+                    torch.tensor(model_forward_time + orig_model_forward_time))
+            return hidden_or_intermediate_states
+
+        logits = self.model.compute_logits(hidden_or_intermediate_states,
+                                           model_input.sampling_metadata)
+
+        if not self.is_driver_worker:
+            return []
+
+        if model_input.async_callback is not None:
+            model_input.async_callback()
+
+        # Sample the next token.
+        output: SamplerOutput = self.model.sample(
+            logits=logits,
+            sampling_metadata=model_input.sampling_metadata,
+        )
+        if (self.observability_config is not None
+                and self.observability_config.collect_model_forward_time
+                and output is not None):
+            model_forward_end.synchronize()
+            model_forward_time = model_forward_start.elapsed_time(
+                model_forward_end)
+            orig_model_forward_time = 0.0
+            if intermediate_tensors is not None:
+                orig_model_forward_time = intermediate_tensors.tensors.get(
+                    "model_forward_time", torch.tensor(0.0)).item()
+            # If there are multiple workers, we are still tracking the latency
+            # from the start time of the driver worker to the end time of the
+            # driver worker. The model forward time will then end up covering
+            # the communication time as well.
+            output.model_forward_time = (orig_model_forward_time +
+                                         model_forward_time)
+
+        if self.return_hidden_states:
+            # we only need to pass hidden states of most recent token
+            assert model_input.sampling_metadata is not None
+            indices = model_input.sampling_metadata.selected_token_indices
+            if model_input.is_prompt:
+                hidden_states = hidden_or_intermediate_states.index_select(
+                    0, indices)
+                output.prefill_hidden_states = hidden_or_intermediate_states
+            else:
+                hidden_states = hidden_or_intermediate_states
+
+            output.hidden_states = hidden_states
+
+        return [output]
+
     def prepare_model_input(
         self,
         seq_group_metadata_list: List[SequenceGroupMetadata],
@@ -569,7 +739,6 @@ class NPUModelRunner(ModelRunner):
         -> decode order. For example,
         - input_tokens[:num_prefill_tokens] contains prefill tokens.
         - input_tokens[num_prefill_tokens:] contains decode tokens.
-        If cuda graph is required, this API automatically pads inputs.
         """
         model_input = self._prepare_model_input_tensors(
             seq_group_metadata_list, finished_requests_ids)
