@@ -6,10 +6,13 @@ def register():
 
 # flake8: noqa: F401
 def register_mindie_turbo():
-    try:
-        from mindie_turbo import vllm_turbo  # type: ignore
-    except ImportError:
+    turbo_module_name = "mindie_turbo"
+    import importlib
+    turbo_spec = importlib.util.find_spec(turbo_module_name)
+    if turbo_spec is not None:
+        importlib.import_module(turbo_module_name)
         from vllm.logger import init_logger
         logger = init_logger(__name__)
         logger.info(
-            "MindIE Turbo is not installed. Running vllm without turbo.")
+            "MindIE Turbo is installed. vLLM inference efficiency will be accelerated with MindIE Turbo."
+        )
