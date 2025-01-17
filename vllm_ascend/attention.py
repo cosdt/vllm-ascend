@@ -31,7 +31,7 @@ def generate_attn_mask(max_seq_len: int, dtype=torch.float16):
                    dtype=torch.bool)).view(max_seq_len, max_seq_len)
     # Create upper triangle matrix used to mark mask positions.
     mask_flag = ~mask_flag
-    # Currently for fp16 dtype, the mask value should be set to -inf. 
+    # Currently for fp16 dtype, the mask value should be set to -inf.
     # TODO: Eliminate this part in the future.
     if dtype == torch.float16:
         mask_value = torch.finfo(torch.float32).min
