@@ -400,8 +400,8 @@ class AscendMetadataBuilder(CommonMetadataBuilder[AscendMetadata]):
             )
 
     def build(
-        self, 
-        seq_lens: List[int], 
+        self,
+        seq_lens: List[int],
         query_lens: List[int],
     ):
         """Build attention metadata with on-device tensors.

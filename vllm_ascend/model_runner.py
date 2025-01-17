@@ -5,23 +5,23 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 import torch
 import torch.distributed
 from vllm.distributed import get_kv_transfer_group, get_pp_group
+from vllm.forward_context import set_forward_context
 from vllm.logger import init_logger
 from vllm.lora.layers import LoRAMapping
 from vllm.lora.request import LoRARequest
 from vllm.model_executor import SamplingMetadata
+from vllm.model_executor.layers.sampler import SamplerOutput
 from vllm.multimodal import MultiModalKwargs, MultiModalPlaceholderMap
 from vllm.platforms import current_platform
 from vllm.prompt_adapter.layers import PromptAdapterMapping
 from vllm.prompt_adapter.request import PromptAdapterRequest
 from vllm.sampling_params import SamplingParams
-from vllm.sequence import SequenceGroupMetadata, IntermediateTensors
+from vllm.sequence import IntermediateTensors, SequenceGroupMetadata
 from vllm.utils import flatten_2d_lists, get_kv_cache_torch_dtype
 from vllm.worker.model_runner import (ModelInputForGPU,
                                       ModelInputForGPUBuilder,
                                       ModelInputForGPUWithSamplingMetadata,
                                       ModelRunner)
-from vllm.forward_context import set_forward_context
-from vllm.model_executor.layers.sampler import SamplerOutput
 from vllm.worker.model_runner_base import dump_input_when_exception
 
 logger = init_logger(__name__)
