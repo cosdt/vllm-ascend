@@ -45,7 +45,6 @@ jobs:
         --device /dev/hisi_hdc
       env:
         HF_ENDPOINT: https://hf-mirror.com
-        VLLM_USE_MODELSCOPE: true
     steps:
       - name: Check npu driver
         run: |
@@ -78,6 +77,7 @@ jobs:
           git clone https://github.com/cosdt/vllm -b apply_plugin
           cd vllm
           pip install -r requirements-cpu.txt
+          pip install -r requirements-dev.txt
           VLLM_TARGET_DEVICE=cpu python setup.py install
 
       - name: Install vllm_ascend
