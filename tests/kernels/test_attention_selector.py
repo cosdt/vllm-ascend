@@ -21,7 +21,7 @@ def clear_cache():
 
 @pytest.mark.parametrize(
     "name", ["TORCH_SDPA", "ROCM_FLASH", "XFORMERS", "FLASHINFER", "OPENVINO"])
-@pytest.mark.parametrize("device", ["cpu", "openvino", "hip", "cuda"])
+@pytest.mark.parametrize("device", ["cpu", "openvino", "hip", "npu"])
 def test_env(name: str, device: str, monkeypatch):
     """Test that the attention selector can be set via environment variable.
     Note that we do not test FlashAttn because it is the default backend.

@@ -49,9 +49,9 @@ def test_dynamic_per_token_fp8_quant(num_tokens: int, hidden_size: int,
     current_platform.seed_everything(seed)
 
     x = torch.rand(num_tokens, hidden_size, dtype=dtype,
-                   device="cuda") + 1e-6  # avoid nans
+                   device="npu") + 1e-6  # avoid nans
 
-    scale_ub = torch.mean(x).to(dtype=torch.float32, device='cuda') \
+    scale_ub = torch.mean(x).to(dtype=torch.float32, device="npu") \
             if scale_ub else None
     ref_out, ref_scales = ref_dynamic_per_token_quant(x, FP8_DTYPE, scale_ub)
     ops_out, ops_scales = ops.scaled_fp8_quant(x,
@@ -78,7 +78,7 @@ def test_dynamic_per_tensor_fp8_quant(num_tokens: int, hidden_size: int,
                                       dtype: torch.dtype, seed: int) -> None:
     current_platform.seed_everything(seed)
 
-    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="cuda")
+    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="npu")
 
     ref_out, ref_scale = ref_dynamic_per_tensor_fp8_quant(x)
     ops_out, ops_scale = ops.scaled_fp8_quant(x)
@@ -101,7 +101,7 @@ def test_fp8_quant_large(seed: int) -> None:
     hidden_size = 1152  # Smallest hidden_size to reproduce the error
     dtype = torch.bfloat16
 
-    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="cuda")
+    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="npu")
     ref_out, scale = ref_dynamic_per_tensor_fp8_quant(x)
     ops_out, _ = ops.scaled_fp8_quant(x, scale)
 

@@ -46,7 +46,7 @@ def test_dynamic_scaled_int8_quant(num_tokens: int, hidden_size: int,
                                    dtype: torch.dtype, seed: int) -> None:
     current_platform.seed_everything(seed)
 
-    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="cuda") * 1000
+    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="npu") * 1000
 
     # reference
     ref_out, ref_scales = ref_dynamic_per_token_quant(x, torch.int8)
@@ -71,7 +71,7 @@ def test_dynamic_scaled_int8_azp_quant(num_tokens: int, hidden_size: int,
     int8_traits = torch.iinfo(torch.int8)
 
     x = torch.rand(num_tokens, hidden_size, dtype=dtype,
-                   device="cuda") * 1000 - 300
+                   device="npu") * 1000 - 300
 
     x_token_max, _ = x.to(dtype=torch.float32).max(dim=1, keepdim=True)
     x_token_min, _ = x.to(dtype=torch.float32).min(dim=1, keepdim=True)
@@ -111,8 +111,8 @@ def test_static_scaled_int8_quant(num_tokens: int, hidden_size: int,
     current_platform.seed_everything(seed)
     int8_traits = torch.iinfo(torch.int8)
 
-    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="cuda") * 1000
-    scale_arg = torch.tensor([scale], dtype=torch.float32, device="cuda")
+    x = torch.rand(num_tokens, hidden_size, dtype=dtype, device="npu") * 1000
+    scale_arg = torch.tensor([scale], dtype=torch.float32, device="npu")
 
     out1 = (x / scale_arg).round().clamp(int8_traits.min,
                                          int8_traits.max).to(torch.int8)
@@ -139,12 +139,12 @@ def test_static_scaled_int8_azp_quant(num_tokens: int, hidden_size: int,
     int8_traits = torch.iinfo(torch.int8)
 
     x = torch.rand(num_tokens, hidden_size, dtype=dtype,
-                   device="cuda") * 1000 - 300
+                   device="npu") * 1000 - 300
 
     out1 = ((x / scale).round() + azp).clamp(int8_traits.min,
                                              int8_traits.max).to(torch.int8)
-    scale_arg = torch.tensor([scale], dtype=torch.float32, device="cuda")
-    azp_arg = torch.tensor([azp], dtype=torch.int32, device="cuda")
+    scale_arg = torch.tensor([scale], dtype=torch.float32, device="npu")
+    azp_arg = torch.tensor([azp], dtype=torch.int32, device="npu")
 
     out2, scale2, azp2 = scaled_int8_quant(x,
                                            scale_arg,
@@ -173,18 +173,18 @@ def test_static_scaled_int8_azp_quant_saturating_cast(is_max: bool) -> None:
         nextafter(val, inf), val + 1, val, val - 1,
         nextafter(val, -inf)
     ]]
-    x = torch.tensor(x_vals, dtype=torch.float32, device="cuda")
+    x = torch.tensor(x_vals, dtype=torch.float32, device="npu")
 
     # The calculation in the kernel is: cast<int8>(cast<int32>(x / scale) + azp)
     # where cast<T> is a saturating cast to type T.
     # Scale is set to 1.0 so that the input values are the ones that are cast.
     # AZP is set to 0 to make sure the int8 saturating cast is tested as well.
-    scale = torch.scalar_tensor(1.0, dtype=torch.float32, device="cuda")
-    azp = torch.scalar_tensor(0, dtype=torch.int32, device="cuda")
+    scale = torch.scalar_tensor(1.0, dtype=torch.float32, device="npu")
+    azp = torch.scalar_tensor(0, dtype=torch.int32, device="npu")
 
     int8_traits = torch.iinfo(torch.int8)
     val_i8 = int8_traits.max if is_max else int8_traits.min
-    expected = torch.full((1, 5), val_i8, dtype=torch.int8, device="cuda")
+    expected = torch.full((1, 5), val_i8, dtype=torch.int8, device="npu")
 
     out, _, _ = scaled_int8_quant(x, scale, azp, symmetric=False)
     torch.testing.assert_close(expected, out, atol=0, rtol=0)

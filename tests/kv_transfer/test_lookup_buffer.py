@@ -126,7 +126,7 @@ if __name__ == "__main__":
 
     config = KVTransferConfig(
         kv_connector='PyNcclConnector',
-        kv_buffer_device='cuda',
+        kv_buffer_device="npu",
         kv_buffer_size=1e9,
         kv_rank=my_rank,
         kv_role="kv_both",  # this arg doesn't matter in this test
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     data_pipe = PyNcclPipe(
         local_rank=my_rank,
         config=config,
-        device="cuda",
+        device="npu",
         port_offset=0,
     )
     cpu_pipe = PyNcclPipe(

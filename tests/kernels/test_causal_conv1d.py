@@ -157,7 +157,7 @@ def causal_conv1d_opcheck_fn(x: torch.Tensor,
 @pytest.mark.parametrize('batch', [1])
 def test_causal_conv1d(batch, dim, seqlen, width, has_bias, silu_activation,
                        has_initial_state, itype):
-    device = "cuda"
+    device = "npu"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -223,7 +223,7 @@ def test_causal_conv1d(batch, dim, seqlen, width, has_bias, silu_activation,
 @pytest.mark.parametrize("dim", [2048, 2048 + 16, 4096])
 def test_causal_conv1d_update(dim, width, seqlen, has_bias, silu_activation,
                               itype):
-    device = "cuda"
+    device = "npu"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -269,7 +269,7 @@ def test_causal_conv1d_update(dim, width, seqlen, has_bias, silu_activation,
 def test_causal_conv1d_update_with_batch_gather(with_padding, dim, width,
                                                 seqlen, has_bias,
                                                 silu_activation, itype):
-    device = "cuda"
+    device = "npu"
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
         rtol, atol = 1e-2, 5e-2
@@ -342,7 +342,7 @@ def test_causal_conv1d_update_with_batch_gather(with_padding, dim, width,
 @pytest.mark.parametrize('with_padding', [True, False])
 def test_causal_conv1d_varlen(with_padding, dim, seqlen, width, has_bias,
                               silu_activation, itype):
-    device = "cuda"
+    device = "npu"
     torch.cuda.empty_cache()
     rtol, atol = (3e-4, 1e-3) if itype == torch.float32 else (3e-3, 5e-3)
     if itype == torch.bfloat16:
@@ -398,7 +398,7 @@ def test_causal_conv1d_varlen(with_padding, dim, seqlen, width, has_bias,
     ],
                                         dim=-1)
 
-    out = causal_conv1d_fn(x.squeeze(0), weight, bias, cumsum.cuda(),
+    out = causal_conv1d_fn(x.squeeze(0), weight, bias, cumsum.npu(),
                            padded_state_indices, has_initial_states,
                            final_states, activation, PAD_SLOT_ID)
     out_ref = []
@@ -430,6 +430,6 @@ def test_causal_conv1d_varlen(with_padding, dim, seqlen, width, has_bias,
                           rtol=rtol,
                           atol=atol)
 
-    causal_conv1d_opcheck_fn(x.squeeze(0), weight, bias, cumsum.cuda(),
+    causal_conv1d_opcheck_fn(x.squeeze(0), weight, bias, cumsum.npu(),
                              padded_state_indices, has_initial_states,
                              final_states, activation)

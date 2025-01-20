@@ -154,7 +154,7 @@ pytest.importorskip("torch.cuda")
 
 @pytest.fixture(autouse=True)
 def setup_cuda():
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
 
 
 @pytest.mark.parametrize("num_tokens,d,dtype,group_size,seed",

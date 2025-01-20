@@ -42,13 +42,13 @@ def _prepare_test(
 
 
 RANDOM_SEEDS = list(range(128))
-CUDA_DEVICES = [
-    f"cuda:{i}" for i in range(1 if torch.cuda.device_count() == 1 else 2)
+NPU_DEVICES = [
+    f"npu:{i}" for i in range(1 if torch.npu.device_count() == 1 else 2)
 ]
 
 
 @pytest.mark.parametrize("seed", RANDOM_SEEDS)
-@pytest.mark.parametrize("device", CUDA_DEVICES)
+@pytest.mark.parametrize("device", NPU_DEVICES)
 def test_logits_processors(seed: int, device: str):
     set_random_seed(seed)
     torch.set_default_device(device)

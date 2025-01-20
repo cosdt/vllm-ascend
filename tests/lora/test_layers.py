@@ -159,7 +159,7 @@ def create_random_inputs(
     input_size: Tuple[int, ...],
     input_range: Tuple[float, float],
     input_type: torch.dtype = torch.int,
-    device: torch.device = "cuda"
+    device: torch.device = "npu"
 ) -> Tuple[List[torch.Tensor], List[int], List[int]]:
     """Creates random inputs.
 
@@ -982,7 +982,7 @@ def test_column_parallel_packed(dist_init, num_loras, repeats, fully_shard,
 
 @torch.inference_mode()
 @pytest.mark.parametrize("num_loras", [1, 8])
-@pytest.mark.parametrize("device", ["cuda"])
+@pytest.mark.parametrize("device", ["npu"])
 @pytest.mark.parametrize("scaling_factors", [(1.0, ), (4.0, ), (4.0, 8.0),
                                              (6.0, 1.0)])
 @pytest.mark.parametrize("max_position", [11, 4096, 32768])

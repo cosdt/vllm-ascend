@@ -28,7 +28,7 @@ def all_reduce_test_worker(tp_size: int, pp_size: int, rank: int,
                                       distributed_init_port)
     num_elements = 8
     all_tensors = [
-        torch.arange(num_elements, dtype=torch.float32, device="cuda") *
+        torch.arange(num_elements, dtype=torch.float32, device="npu") *
         (r + 1) for r in range(tp_size)
     ]
     expected = torch.sum(torch.stack(all_tensors, dim=0), dim=0)
@@ -56,7 +56,7 @@ def all_gather_test_worker(tp_size: int, pp_size: int, rank: int,
     for all_gather_dimension in range(num_dimensions):
         all_tensors = [
             torch.arange(total_size, dtype=torch.float32,
-                         device="cuda").reshape(tensor_size) * (r + 1)
+                         device="npu").reshape(tensor_size) * (r + 1)
             for r in range(tp_size)
         ]
         expected = torch.cat(all_tensors, dim=all_gather_dimension)
@@ -78,7 +78,7 @@ def broadcast_tensor_dict_test_worker(tp_size: int, pp_size: int, rank: int,
                                       distributed_init_port)
     test_dict = {
         # device tensor
-        "a": torch.arange(8, dtype=torch.float32, device="cuda"),
+        "a": torch.arange(8, dtype=torch.float32, device="npu"),
         # CPU tensor
         "b": torch.arange(16, dtype=torch.int8, device="cpu"),
         "c": "test",
@@ -88,7 +88,7 @@ def broadcast_tensor_dict_test_worker(tp_size: int, pp_size: int, rank: int,
             "b": 2
         },
         # empty tensor
-        "f": torch.tensor([], dtype=torch.float32, device="cuda"),
+        "f": torch.tensor([], dtype=torch.float32, device="npu"),
     }
 
     if (rank % tp_size) == 0:
@@ -115,7 +115,7 @@ def send_recv_tensor_dict_test_worker(tp_size: int, pp_size: int, rank: int,
 
     test_dict = {
         # device tensor
-        "a": torch.arange(8, dtype=torch.float32, device="cuda"),
+        "a": torch.arange(8, dtype=torch.float32, device="npu"),
         # CPU tensor
         "b": torch.arange(16, dtype=torch.int8, device="cpu"),
         "c": "test",
@@ -125,7 +125,7 @@ def send_recv_tensor_dict_test_worker(tp_size: int, pp_size: int, rank: int,
             "b": 2
         },
         # empty tensor
-        "f": torch.tensor([], dtype=torch.float32, device="cuda"),
+        "f": torch.tensor([], dtype=torch.float32, device="npu"),
     }
 
     if not get_pp_group().is_first_rank:
@@ -154,7 +154,7 @@ def send_recv_test_worker(tp_size: int, pp_size: int, rank: int,
                                       distributed_init_port)
 
     size = 64
-    test_tensor = torch.arange(64, dtype=torch.float32, device="cuda")
+    test_tensor = torch.arange(64, dtype=torch.float32, device="npu")
 
     if not get_pp_group().is_first_rank:
         recv_tensor = get_pp_group().recv(size, dtype=torch.float32)

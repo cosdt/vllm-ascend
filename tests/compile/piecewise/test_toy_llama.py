@@ -278,11 +278,11 @@ def run_model(llama_config,
     with set_current_vllm_config(vllm_config):
         model = LlamaModel(config=llama_config,
                            vllm_config=vllm_config,
-                           prefix="").eval().cuda()
+                           prefix="").eval().npu()
 
     B = 16  # max batch size
-    input_ids = torch.randint(0, llama_config.vocab_size, (B, )).cuda()
-    positions = torch.arange(B).cuda()
+    input_ids = torch.randint(0, llama_config.vocab_size, (B, )).npu()
+    positions = torch.arange(B).npu()
 
     model(input_ids, positions)
     model(input_ids[:2], positions[:2])
@@ -401,11 +401,11 @@ def benchmark():
         with set_current_vllm_config(vllm_config):
             model = LlamaModel(config=llama_config,
                                vllm_config=vllm_config,
-                               prefix="").eval().cuda().to(torch.bfloat16)
+                               prefix="").eval().npu().to(torch.bfloat16)
 
         B = 256  # max batch size
-        input_ids = torch.randint(0, llama_config.vocab_size, (B, )).cuda()
-        positions = torch.arange(B).cuda().to(torch.bfloat16)
+        input_ids = torch.randint(0, llama_config.vocab_size, (B, )).npu()
+        positions = torch.arange(B).npu().to(torch.bfloat16)
 
         graphs = {}
 

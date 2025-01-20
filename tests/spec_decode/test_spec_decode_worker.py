@@ -73,8 +73,8 @@ def test_batch_expansion_correctly_calls_target_model(
     target_worker = mock_worker(use_spec=False)
     metrics_collector = MagicMock(spec=AsyncMetricsCollector)
 
-    draft_worker.device = 'cuda'
-    target_worker.device = 'cuda'
+    draft_worker.device = "npu"
+    target_worker.device = "npu"
 
     set_random_seed(1)
 
@@ -93,14 +93,14 @@ def test_batch_expansion_correctly_calls_target_model(
                                        high=vocab_size,
                                        size=(batch_size, k),
                                        dtype=torch.int64,
-                                       device='cuda')
+                                       device="npu")
     proposal_probs = torch.rand(batch_size,
                                 k,
                                 vocab_size,
                                 dtype=torch.float32,
-                                device='cuda')
+                                device="npu")
     proposal_lens = torch.ones(batch_size, dtype=torch.int64,
-                               device='cuda') * k
+                               device="npu") * k
 
     seq_group_metadata_list, prompts, prev_output_tokens = create_batch(
         batch_size, k)
@@ -163,8 +163,8 @@ def test_correctly_calls_spec_decode_sampler(k: int, batch_size: int,
     target_worker = mock_worker(vocab_size=vocab_size, use_spec=False)
     spec_decode_sampler = mock_spec_decode_sampler(acceptance_sampler_method)
     metrics_collector = MagicMock(spec=AsyncMetricsCollector)
-    draft_worker.device = 'cuda'
-    target_worker.device = 'cuda'
+    draft_worker.device = "npu"
+    target_worker.device = "npu"
 
     set_random_seed(1)
 
@@ -179,15 +179,15 @@ def test_correctly_calls_spec_decode_sampler(k: int, batch_size: int,
                                        high=vocab_size,
                                        size=(batch_size, k),
                                        dtype=torch.int64,
-                                       device='cuda')
+                                       device="npu")
     proposal_probs = torch.rand(batch_size,
                                 k,
                                 vocab_size,
                                 dtype=torch.float32,
-                                device='cuda')
+                                device="npu")
 
     proposal_lens = torch.ones(batch_size, dtype=torch.int64,
-                               device='cuda') * k
+                               device="npu") * k
 
     seq_group_metadata_list, _, _ = create_batch(batch_size, k)
 
@@ -200,17 +200,17 @@ def test_correctly_calls_spec_decode_sampler(k: int, batch_size: int,
                                      high=vocab_size,
                                      size=(1, batch_size * (k + 1)),
                                      dtype=torch.int64,
-                                     device='cuda')
+                                     device="npu")
     target_token_probs = torch.rand(1,
                                     batch_size * (k + 1),
                                     vocab_size,
                                     dtype=torch.float32,
-                                    device='cuda')
+                                    device="npu")
     target_token_logprobs = torch.rand(1,
                                        batch_size * (k + 1),
                                        vocab_size,
                                        dtype=torch.float32,
-                                       device='cuda')
+                                       device="npu")
     target_output = create_sampler_output_list(target_token_ids,
                                                target_token_probs,
                                                target_token_logprobs)
@@ -255,8 +255,8 @@ def test_correctly_formats_output(k: int, batch_size: int,
                                use_spec=False)
     target_worker = mock_worker(vocab_size=vocab_size, use_spec=False)
     metrics_collector = MagicMock(spec=AsyncMetricsCollector)
-    draft_worker.device = 'cuda'
-    target_worker.device = 'cuda'
+    draft_worker.device = "npu"
+    target_worker.device = "npu"
 
     set_random_seed(1)
     spec_decode_sampler = mock_spec_decode_sampler(acceptance_sampler_method)
@@ -271,15 +271,15 @@ def test_correctly_formats_output(k: int, batch_size: int,
                                        high=vocab_size,
                                        size=(batch_size, k),
                                        dtype=torch.int64,
-                                       device='cuda')
+                                       device="npu")
     proposal_probs = torch.rand(batch_size,
                                 k,
                                 vocab_size,
                                 dtype=torch.float32,
-                                device='cuda')
+                                device="npu")
 
     proposal_lens = torch.ones(batch_size, dtype=torch.int64,
-                               device='cuda') * k
+                               device="npu") * k
 
     seq_group_metadata_list, _, _ = create_batch(batch_size, k)
 
@@ -292,17 +292,17 @@ def test_correctly_formats_output(k: int, batch_size: int,
                                      high=vocab_size,
                                      size=(1, batch_size * (k + 1)),
                                      dtype=torch.int64,
-                                     device='cuda')
+                                     device="npu")
     target_token_probs = torch.rand(1,
                                     batch_size * (k + 1),
                                     vocab_size,
                                     dtype=torch.float32,
-                                    device='cuda')
+                                    device="npu")
     target_token_logprobs = torch.rand(1,
                                        batch_size * (k + 1),
                                        vocab_size,
                                        dtype=torch.float32,
-                                       device='cuda')
+                                       device="npu")
     target_output = create_sampler_output_list(target_token_ids,
                                                target_token_probs,
                                                target_token_logprobs)
@@ -313,7 +313,7 @@ def test_correctly_formats_output(k: int, batch_size: int,
                                                high=vocab_size,
                                                size=(batch_size, k + 1),
                                                dtype=torch.int64,
-                                               device='cuda')
+                                               device="npu")
     for i in range(batch_size):
         minimum_accepted_tokens = 1
         spec_decode_sampler_output[i][
@@ -387,8 +387,8 @@ def test_collects_metrics(k: int, batch_size: int, returns_metrics: bool,
     target_worker = mock_worker(vocab_size=vocab_size, use_spec=False)
     spec_decode_sampler = mock_spec_decode_sampler(acceptance_sampler_method)
     metrics_collector = MagicMock(spec=AsyncMetricsCollector)
-    draft_worker.device = 'cuda'
-    target_worker.device = 'cuda'
+    draft_worker.device = "npu"
+    target_worker.device = "npu"
 
     set_random_seed(1)
 
@@ -403,15 +403,15 @@ def test_collects_metrics(k: int, batch_size: int, returns_metrics: bool,
                                        high=vocab_size,
                                        size=(batch_size, k),
                                        dtype=torch.int64,
-                                       device='cuda')
+                                       device="npu")
     proposal_probs = torch.rand(batch_size,
                                 k,
                                 vocab_size,
                                 dtype=torch.float32,
-                                device='cuda')
+                                device="npu")
 
     proposal_lens = torch.ones(batch_size, dtype=torch.int64,
-                               device='cuda') * k
+                               device="npu") * k
 
     seq_group_metadata_list, _, _ = create_batch(batch_size, k)
 
@@ -424,17 +424,17 @@ def test_collects_metrics(k: int, batch_size: int, returns_metrics: bool,
                                      high=vocab_size,
                                      size=(1, batch_size * (k + 1)),
                                      dtype=torch.int64,
-                                     device='cuda')
+                                     device="npu")
     target_token_probs = torch.rand(1,
                                     batch_size * (k + 1),
                                     vocab_size,
                                     dtype=torch.float32,
-                                    device='cuda')
+                                    device="npu")
     target_token_logprobs = torch.rand(1,
                                        batch_size * (k + 1),
                                        vocab_size,
                                        dtype=torch.float32,
-                                       device='cuda')
+                                       device="npu")
     target_output = create_sampler_output_list(target_token_ids,
                                                target_token_probs,
                                                target_token_logprobs)
@@ -445,7 +445,7 @@ def test_collects_metrics(k: int, batch_size: int, returns_metrics: bool,
                                                high=vocab_size,
                                                size=(batch_size, k + 1),
                                                dtype=torch.int64,
-                                               device='cuda')
+                                               device="npu")
     for i in range(batch_size):
         minimum_accepted_tokens = 1
         spec_decode_sampler_output[i][
@@ -487,8 +487,8 @@ def test_k_equals_zero(k: int, batch_size: int,
     sampler_output.hidden_states = None
     target_worker.execute_model.return_value = [sampler_output]
 
-    draft_worker.device = 'cuda'
-    target_worker.device = 'cuda'
+    draft_worker.device = "npu"
+    target_worker.device = "npu"
 
     set_random_seed(1)
 
@@ -538,8 +538,8 @@ def test_empty_input_batch(k: int, batch_size: int,
     sampler_output.hidden_states = None
     target_worker.execute_model.return_value = [sampler_output]
 
-    draft_worker.device = 'cuda'
-    target_worker.device = 'cuda'
+    draft_worker.device = "npu"
+    target_worker.device = "npu"
 
     set_random_seed(1)
 
@@ -702,11 +702,11 @@ def test_populate_seq_ids_with_bonus_tokens():
     target_worker = mock_worker(vocab_size=vocab_size, use_spec=False)
     metrics_collector = MagicMock(spec=AsyncMetricsCollector)
     target_worker.execute_model.return_value = [MagicMock(spec=SamplerOutput)]
-    target_worker.device = 'cuda'
+    target_worker.device = "npu"
 
     set_random_seed(1)
     draft_worker = mock_worker(cls=MultiStepWorker)
-    draft_worker.device = 'cuda'
+    draft_worker.device = "npu"
     # The sequence_ids attached to each sequence in the batch.
     # The sequence at index i has seq_id assigned_seq_ids[i]
     assigned_seq_ids = list(range(batch_size))
@@ -717,12 +717,12 @@ def test_populate_seq_ids_with_bonus_tokens():
     target_token_logprobs = torch.rand(batch_size, (k + 1),
                                        vocab_size,
                                        dtype=torch.float32,
-                                       device='cuda')
+                                       device="npu")
     accepted_token_ids = torch.randint(low=0,
                                        high=vocab_size,
                                        size=(batch_size, (k + 1)),
                                        dtype=torch.int64,
-                                       device='cuda')
+                                       device="npu")
     expected_request_id_seq_ids_mapping: Dict[str, Set[int]] = defaultdict(set)
     for seq_group_metadata in seq_group_metadata_list:
         for seq_id in seq_group_metadata.seq_data:
@@ -732,7 +732,7 @@ def test_populate_seq_ids_with_bonus_tokens():
     seq_indexes_with_bonus_tokens = random.sample(
         range(batch_size), num_sequences_with_bonus_tokens)
     # Create a mask that is True for indices in seq_indexes_with_bonus_tokens
-    mask = torch.ones(batch_size, dtype=torch.bool, device='cuda')
+    mask = torch.ones(batch_size, dtype=torch.bool, device="npu")
     mask[seq_indexes_with_bonus_tokens] = False
     # Set the last token ID to -1 for all indices not in
     # seq_indexes_with_bonus_tokens to indicate the lack of bonus token in
@@ -874,17 +874,17 @@ def test_chunked_prefill_flow(k: int, batch_size: int, batch_composition: str):
                                      high=vocab_size,
                                      size=(1, batch_size * (k + 1)),
                                      dtype=torch.int64,
-                                     device='cuda')
+                                     device="npu")
     target_token_probs = torch.rand(1,
                                     batch_size * (k + 1),
                                     vocab_size,
                                     dtype=torch.float32,
-                                    device='cuda')
+                                    device="npu")
     target_token_logprobs = torch.rand(1,
                                        batch_size * (k + 1),
                                        vocab_size,
                                        dtype=torch.float32,
-                                       device='cuda')
+                                       device="npu")
     target_output = create_sampler_output_list(target_token_ids,
                                                target_token_probs,
                                                target_token_logprobs)

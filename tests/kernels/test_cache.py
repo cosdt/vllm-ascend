@@ -8,7 +8,7 @@ from tests.kernels.utils import DEFAULT_OPCHECK_TEST_UTILS, opcheck
 from vllm import _custom_ops as ops
 from vllm.platforms import current_platform
 
-COPYING_DIRECTION = [('cuda', 'cpu'), ('cuda', 'cuda'), ('cpu', 'cuda')]
+COPYING_DIRECTION = [("npu", 'cpu'), ("npu", "npu"), ('cpu', "npu")]
 DTYPES = [torch.half, torch.bfloat16, torch.float]
 NUM_TOKENS = [42]  # Arbitrary values for testing
 NUM_LAYERS = [1]  # Arbitrary values for testing
@@ -348,8 +348,8 @@ def test_swap_blocks(
 
     current_platform.seed_everything(seed)
 
-    src_device = device if direction[0] == "cuda" else 'cpu'
-    dst_device = device if direction[1] == "cuda" else 'cpu'
+    src_device = device if direction[0] == "npu" else 'cpu'
+    dst_device = device if direction[1] == "npu" else 'cpu'
 
     src_blocks = random.sample(range(num_blocks), num_mappings)
     # For the same device, mapping must not overlap

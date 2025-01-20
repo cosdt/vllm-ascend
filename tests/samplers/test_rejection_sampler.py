@@ -535,13 +535,13 @@ class _CorrectnessTestHelper:
         # Bonus tokens not used but required.
         bonus_token_ids = torch.zeros((1, self.num_bonus_tokens),
                                       dtype=torch.int64,
-                                      device="cuda").repeat(num_samples, 1)
+                                      device="npu").repeat(num_samples, 1)
 
         # Get output tokens via rejection sampling.
-        output_token_ids = self.rejection_sampler(target_probs.to("cuda"),
-                                                  bonus_token_ids.to("cuda"),
-                                                  draft_probs.to("cuda"),
-                                                  draft_token_ids.to("cuda"))
+        output_token_ids = self.rejection_sampler(target_probs.to("npu"),
+                                                  bonus_token_ids.to("npu"),
+                                                  draft_probs.to("npu"),
+                                                  draft_token_ids.to("npu"))
 
         # Remove bonus tokens
         output_token_ids = output_token_ids[:, :-1].flatten()

@@ -126,9 +126,9 @@ IS_SUPPORTED_BY_GPU = current_platform.has_device_capability(90)
 
 def rand_data(shape, dtype=torch.float16, scale=1, offset=0):
     if dtype.is_floating_point:
-        return (scale * torch.rand(shape, device="cuda") - offset).to(dtype)
+        return (scale * torch.rand(shape, device="npu") - offset).to(dtype)
     else:
-        return torch.randint(-8, 7, shape, dtype=dtype, device="cuda")
+        return torch.randint(-8, 7, shape, dtype=dtype, device="npu")
 
 
 def maybe_convert_zeropoints(zps: Optional[torch.Tensor], s: torch.Tensor):

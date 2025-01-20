@@ -45,7 +45,7 @@ def assert_score_equal(score1: SpeculativeScores,
 @pytest.mark.parametrize('batch_size', [1, 2, 4, 8, 16])
 @pytest.mark.parametrize('max_propose_len', [1, 3, 5])
 @pytest.mark.parametrize('mixed_propose_len', [True])
-@pytest.mark.parametrize('device', ['cuda'])
+@pytest.mark.parametrize('device', ["npu"])
 @pytest.mark.parametrize('prefill_chunking', [False, True])
 def test_scorer(model_name: str, batch_size: int, max_propose_len: int,
                 mixed_propose_len: bool, device: str,

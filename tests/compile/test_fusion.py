@@ -57,10 +57,10 @@ class TestModel(torch.nn.Module):
 @pytest.mark.parametrize("num_tokens", [7, 256, 533, 2048, 2049])
 @pytest.mark.parametrize("eps", [1e-5, 1e-6])
 @pytest.mark.parametrize("static", [True, False])
-@pytest.mark.skipif(envs.VLLM_TARGET_DEVICE != "cuda",
+@pytest.mark.skipif(envs.VLLM_TARGET_DEVICE != "npu",
                     reason="Only test on CUDA")
 def test_fusion_rmsnorm_quant(dtype, hidden_size, num_tokens, eps, static):
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     torch.set_default_dtype(dtype)
     torch.manual_seed(1)
 

@@ -63,7 +63,7 @@ def compute_max_diff(output, output_ref):
 
 
 def rand_data(shape, dtype=torch.float16):
-    return torch.randn(shape, dtype=dtype, device="cuda")
+    return torch.randn(shape, dtype=dtype, device="npu")
 
 
 @pytest.mark.skipif(not is_quant_method_supported("gptq_marlin"),
@@ -353,7 +353,7 @@ def test_fp8_marlin_gemm(
     # Repack weights to marlin format
     marlin_qweight = ops.gptq_marlin_repack(
         b_q_weight=packed_gptq_qweight,
-        perm=torch.empty(0, dtype=torch.int, device="cuda"),
+        perm=torch.empty(0, dtype=torch.int, device="npu"),
         size_k=size_k,
         size_n=size_n,
         num_bits=8,
@@ -362,7 +362,7 @@ def test_fp8_marlin_gemm(
     # WEIGHT SCALES
     # Currently Marlin doesn't support per-tensor scales, so we
     # expand it to channelwise
-    scales = weight_scale.repeat(1, size_n).to(a_input.dtype).to("cuda")
+    scales = weight_scale.repeat(1, size_n).to(a_input.dtype).to("npu")
     # Permute scales
     marlin_scales = marlin_permute_scales(s=scales,
                                           size_k=size_k,
@@ -605,9 +605,9 @@ def test_marlin_gemm_opcheck():
     size_m = 2048
     size_n = 4096
     size_k = 4096
-    a = torch.rand((size_m, size_n), device='cuda', dtype=torch.float16)
-    w = torch.randint(-5, 5, (256, 8192), device='cuda', dtype=torch.int32)
-    s = torch.full((32, size_k), 0.125, device='cuda', dtype=torch.float16)
+    a = torch.rand((size_m, size_n), device="npu", dtype=torch.float16)
+    w = torch.randint(-5, 5, (256, 8192), device="npu", dtype=torch.int32)
+    s = torch.full((32, size_k), 0.125, device="npu", dtype=torch.float16)
     wk = MarlinWorkspace(size_n, GPTQ_MARLIN_MIN_THREAD_N,
                          GPTQ_MARLIN_MAX_PARALLEL).scratch
     x = torch.ops._C.marlin_gemm(a, w, s, wk, size_m, size_n, size_k)

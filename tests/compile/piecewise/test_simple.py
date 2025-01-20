@@ -85,7 +85,7 @@ def test_simple_piecewise_compile():
     with set_current_vllm_config(vllm_config):
         model = SillyModel(vllm_config=vllm_config, prefix='')
 
-    inputs = torch.randn(100).cuda()
+    inputs = torch.randn(100).npu()
 
     with compilation_counter.expect(
             num_graphs_seen=1,  # one graph for the model
@@ -98,10 +98,10 @@ def test_simple_piecewise_compile():
 
         model(inputs)
 
-        model(torch.randn(2).cuda())
-        model(torch.randn(1).cuda())
+        model(torch.randn(2).npu())
+        model(torch.randn(1).npu())
 
-        input = torch.zeros(2).cuda()
+        input = torch.zeros(2).npu()
         global global_counter
         global_counter = 0
         output = model(input)

@@ -31,7 +31,7 @@ EPS = 1e-6
 
 
 def as_float32_tensor(x: Union[float, torch.tensor]) -> torch.tensor:
-    return torch.as_tensor(x, dtype=torch.float32, device='cuda')
+    return torch.as_tensor(x, dtype=torch.float32, device="npu")
 
 
 def ref_rms_norm(rms_norm_layer: RMSNorm,
@@ -143,7 +143,7 @@ def test_rms_norm(
     residual = torch.randn_like(x) * scale if add_residual else None
     if scale_ub is not None:
         rms_x, _ = ref_rms_norm(layer, x, residual)
-        scale_ub = torch.mean(rms_x).to(dtype=torch.float32, device='cuda')
+        scale_ub = torch.mean(rms_x).to(dtype=torch.float32, device="npu")
 
     ref_out, ref_scales, ref_residual = \
         ref_impl(layer, x, quant_dtype, residual, scale_ub)

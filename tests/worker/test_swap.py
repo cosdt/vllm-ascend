@@ -46,7 +46,7 @@ def test_swap() -> None:
         cpu_value_cache.random_()
 
     allclose = lambda a, b: torch.allclose(
-        a.cuda(), b.cuda(), rtol=0.0, atol=0.0)
+        a.npu(), b.npu(), rtol=0.0, atol=0.0)
 
     # Test swap out.
     blocks_to_swap_out = [(3, 72), (56, 35), (84, 34)]

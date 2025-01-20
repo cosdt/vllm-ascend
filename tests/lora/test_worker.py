@@ -30,7 +30,7 @@ def test_worker_apply_lora(sql_lora_files):
         ),
         parallel_config=ParallelConfig(1, 1, False),
         scheduler_config=SchedulerConfig("generate", 32, 32, 32),
-        device_config=DeviceConfig("cuda"),
+        device_config=DeviceConfig("npu"),
         cache_config=CacheConfig(block_size=16,
                                  gpu_memory_utilization=1.,
                                  swap_space=0,

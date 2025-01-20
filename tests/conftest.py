@@ -978,7 +978,7 @@ def num_gpus_available():
     """Get number of GPUs without initializing the CUDA context
     in current process."""
 
-    return cuda_device_count_stateless()
+    return 1
 
 
 temp_dir = tempfile.gettempdir()

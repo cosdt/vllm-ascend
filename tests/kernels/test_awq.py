@@ -13,10 +13,10 @@ def test_awq_dequantize_opcheck():
     os.environ["VLLM_USE_TRITON_AWQ"] = "0"
     qweight = torch.randint(-2000000000,
                             2000000000, (8192, 256),
-                            device='cuda',
+                            device="npu",
                             dtype=torch.int32)
-    scales = torch.rand((64, 2048), device='cuda', dtype=torch.float16)
-    zeros = torch.empty((64, 256), device='cuda', dtype=torch.int32)
+    scales = torch.rand((64, 2048), device="npu", dtype=torch.float16)
+    zeros = torch.empty((64, 256), device="npu", dtype=torch.int32)
     split_k_iters = 0
     thx = 0
     thy = 0
@@ -28,16 +28,16 @@ def test_awq_dequantize_opcheck():
                     reason="AWQ is not supported on this GPU type.")
 def test_awq_gemm_opcheck():
     os.environ["VLLM_USE_TRITON_AWQ"] = "0"
-    input = torch.rand((2, 8192), device='cuda', dtype=torch.float16)
+    input = torch.rand((2, 8192), device="npu", dtype=torch.float16)
     qweight = torch.randint(-2000000000,
                             2000000000, (8192, 256),
-                            device='cuda',
+                            device="npu",
                             dtype=torch.int32)
     scales = torch.randint(-2000000000,
                            2000000000, (64, 256),
-                           device='cuda',
+                           device="npu",
                            dtype=torch.int32)
-    qzeros = torch.empty((64, 2048), device='cuda', dtype=torch.float16)
+    qzeros = torch.empty((64, 2048), device="npu", dtype=torch.float16)
     split_k_iters = 8
     opcheck(torch.ops._C.awq_gemm,
             (input, qweight, qzeros, scales, split_k_iters))

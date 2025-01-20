@@ -30,7 +30,7 @@ def rotary_embedding_opcheck(rot,
                  rot.is_neox_style))
 
 
-@pytest.mark.parametrize("device", ["cuda"])
+@pytest.mark.parametrize("device", ["npu"])
 @pytest.mark.parametrize("max_position", [11, 4096, 32768])
 @pytest.mark.parametrize("is_neox_style", [True, False])
 @pytest.mark.parametrize("rotary_dim", [32])

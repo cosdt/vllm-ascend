@@ -37,7 +37,7 @@ def test_get_token_ids_to_score(k: int):
     proposal_token_ids = torch.tensor(
         list(range(k)),
         dtype=torch.int64,
-        device='cuda',
+        device="npu",
     )
 
     expected_output: List[List[int]] = [

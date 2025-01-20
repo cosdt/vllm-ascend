@@ -14,11 +14,11 @@ from tests.quantization.utils import is_quant_method_supported
 # from transformers import AutoTokenizer, AutoModelForCausalLM
 # model_id = "ISTA-DASLab/Llama-2-7b-AQLM-2Bit-1x16-hf"
 # quantized_model = AutoModelForCausalLM.from_pretrained(model_id,
-# torch_dtype="auto", device_map="cuda").cuda()
+# torch_dtype="auto", device_map="npu").npu()
 # tokenizer = AutoTokenizer.from_pretrained(model_id)
 # outputs = []
 # for prompt in example_prompts:
-#     input_ids = tokenizer(prompt, return_tensors="pt")["input_ids"].to("cuda")
+#     input_ids = tokenizer(prompt, return_tensors="pt")["input_ids"].to("npu")
 #     hf_outputs = quantized_model.generate(input_ids, max_new_tokens=32)
 #     outputs.append(tokenizer.decode(hf_outputs[0][input_ids.shape[1]:]))
 # print(outputs)

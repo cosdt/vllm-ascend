@@ -76,7 +76,7 @@ def gpu_worker(rank, WORLD_SIZE, port1, port2):
                                            rank=rank,
                                            world_size=3)
         pynccl2 = PyNcclCommunicator(pg2, device=rank)
-    data = torch.tensor([rank]).cuda()
+    data = torch.tensor([rank]).npu()
     pynccl1.all_reduce(data)
     pg1.barrier()
     torch.cuda.synchronize()

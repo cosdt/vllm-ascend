@@ -40,11 +40,11 @@ def test_fused_moe(
     topk: int,
     dtype: torch.dtype,
 ):
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w1 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
-    w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="npu", dtype=dtype) / 10
+    w1 = torch.randn((e, 2 * n, k), device="npu", dtype=dtype) / 10
+    w2 = torch.randn((e, k, n), device="npu", dtype=dtype) / 10
 
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="npu", dtype=dtype)
     triton_output = fused_moe(a, w1, w2, score, topk, renormalize=False)
     torch_output = torch_moe(a, w1, w2, score, topk)
     torch.testing.assert_close(triton_output, torch_output, atol=2e-2, rtol=0)
@@ -64,7 +64,7 @@ def test_mixtral_moe(dtype: torch.dtype):
 
     # Instantiate our and huggingface's MoE blocks
     config = MixtralConfig()
-    hf_moe = MixtralSparseMoeBlock(config).to(dtype).to("cuda")
+    hf_moe = MixtralSparseMoeBlock(config).to(dtype).to("npu")
     vllm_moe = MixtralMoE(
         num_experts=config.num_local_experts,
         top_k=config.num_experts_per_tok,
@@ -72,7 +72,7 @@ def test_mixtral_moe(dtype: torch.dtype):
         intermediate_size=config.intermediate_size,
         params_dtype=dtype,
         tp_size=1,
-    ).cuda()
+    ).npu()
 
     # Load the weights
     vllm_moe.gate.weight.data[:] = hf_moe.gate.weight.data
@@ -83,7 +83,7 @@ def test_mixtral_moe(dtype: torch.dtype):
         vllm_moe.experts.w2_weight[i][:] = hf_moe.experts[i].w2.weight.data
 
     # Generate input batch of dimensions [batch_size, seq_len, hidden_dim]
-    hf_inputs = torch.randn((1, 64, config.hidden_size)).to(dtype).to("cuda")
+    hf_inputs = torch.randn((1, 64, config.hidden_size)).to(dtype).to("npu")
     # vLLM uses 1D query [num_tokens, hidden_dim]
     vllm_inputs = hf_inputs.flatten(0, 1)
 
@@ -139,9 +139,9 @@ def test_fused_marlin_moe(
     quant_type = (scalar_types.uint4b8
                   if num_bits == 4 else scalar_types.uint8b128)
     dtype = torch.float16
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w1 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
-    w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="npu", dtype=dtype) / 10
+    w1 = torch.randn((e, 2 * n, k), device="npu", dtype=dtype) / 10
+    w2 = torch.randn((e, k, n), device="npu", dtype=dtype) / 10
 
     w_ref1_l = []
     qweight1_l = []
@@ -189,7 +189,7 @@ def test_fused_marlin_moe(
     g_idx2 = stack_and_dev(g_idx2_l)
     sort_indices2 = stack_and_dev(sort_indices2_l)
 
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="npu", dtype=dtype)
 
     topk_weights, topk_ids = fused_topk(a, score, topk, False)
 
@@ -241,12 +241,12 @@ def test_fused_marlin_moe(
         max_workspace_size = ((m + 255) // 256) * (max(2 * n, k) // 64) * 16
         workspace = torch.zeros(max_workspace_size,
                                 dtype=torch.int,
-                                device="cuda",
+                                device="npu",
                                 requires_grad=False)
 
         zp = torch.empty((0, 0),
                          dtype=dtype,
-                         device="cuda",
+                         device="npu",
                          requires_grad=False)
         opcheck(torch.ops._moe_C.marlin_gemm_moe,
                 (a, qweight1, sorted_token_ids, topk_weights, topk_ids,
@@ -291,8 +291,8 @@ def test_single_marlin_moe_multiply(
     quant_type = (scalar_types.uint4b8
                   if num_bits == 4 else scalar_types.uint8b128)
     dtype = torch.float16
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w = torch.randn((e, n, k), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="npu", dtype=dtype) / 10
+    w = torch.randn((e, n, k), device="npu", dtype=dtype) / 10
 
     w_ref_l = []
     qweights_l = []
@@ -316,7 +316,7 @@ def test_single_marlin_moe_multiply(
     g_idx = stack_and_dev(g_idx_l)
     sort_indices = stack_and_dev(sort_indices_l)
 
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="npu", dtype=dtype)
     marlin_output = torch.ops.vllm.single_marlin_moe(
         a,
         qweight,
@@ -341,7 +341,7 @@ def test_moe_align_block_size_opcheck():
     topk_ids = torch.randint(0,
                              num_experts, (3, 4),
                              dtype=torch.int32,
-                             device='cuda')
+                             device="npu")
 
     max_num_tokens_padded = topk_ids.numel() + num_experts * (block_size - 1)
     sorted_ids = torch.empty((max_num_tokens_padded, ),

@@ -117,7 +117,7 @@ def test_scaled_fp8_quant(dtype) -> None:
 
     # Note that we use a shape % 4 != 0 to cover edge cases,
     # because scaled_fp8_quant is vectorized by 4.
-    x = (torch.randn(size=(11, 11), device="cuda") * 13).to(dtype)
+    x = (torch.randn(size=(11, 11), device="npu") * 13).to(dtype)
 
     # Dynamic quantization
     ref_y, inv_scale = ops.scaled_fp8_quant(x, None)

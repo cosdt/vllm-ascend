@@ -576,7 +576,7 @@ def test_multi_step_correct_kvcache(num_steps, attn_backend):
         multi_step_gpu_cache = multi_step_worker.cache_engine[0].gpu_cache
         num_layers = len(single_step_gpu_cache)
         allclose = lambda a, b: torch.allclose(
-            a.cuda(), b.cuda(), rtol=1e-2, atol=1e-2)
+            a.npu(), b.npu(), rtol=1e-2, atol=1e-2)
         for i in range(num_layers):
             assert allclose(single_step_gpu_cache[i][0],
                             multi_step_gpu_cache[i][0])

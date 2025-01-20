@@ -83,7 +83,7 @@ def test_flashinfer_decode_with_paged_kv(
     block_size: int,
     soft_cap: Optional[float],
 ) -> None:
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     current_platform.seed_everything(0)
     num_seqs = len(kv_lens)
     num_query_heads = num_heads[0]
@@ -169,7 +169,7 @@ def test_flashinfer_prefill_with_paged_kv(seq_lens: List[Tuple[int, int]],
                                           head_size: int, dtype: torch.dtype,
                                           block_size: int,
                                           soft_cap: Optional[float]) -> None:
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     current_platform.seed_everything(0)
     num_seqs = len(seq_lens)
     query_lens = [x[0] for x in seq_lens]
@@ -267,7 +267,7 @@ def test_flashinfer_prefill_with_paged_fp8_kv(
         seq_lens: List[Tuple[int, int]], num_heads: Tuple[int, int],
         head_size: int, dtype: torch.dtype, block_size: int,
         soft_cap: Optional[float]) -> None:
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     current_platform.seed_everything(0)
     num_seqs = len(seq_lens)
     query_lens = [x[0] for x in seq_lens]
@@ -380,7 +380,7 @@ def test_flashinfer_decode_with_paged_fp8_kv(
     soft_cap: Optional[float],
 ) -> None:
     # test doesn't work for num_heads = (16,16)
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     current_platform.seed_everything(0)
     num_seqs = len(kv_lens)
     num_query_heads = num_heads[0]

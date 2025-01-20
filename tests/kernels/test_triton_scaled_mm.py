@@ -10,7 +10,7 @@ import torch
 
 from vllm.platforms import current_platform
 
-device = "cuda"
+device = "npu"
 
 
 def scaled_mm_torch(a: torch.Tensor,

@@ -60,8 +60,8 @@ class DummyLoRAManager:
             module_name,
             rank=rank,
             lora_alpha=1,
-            lora_a=torch.rand([input_dim, rank], device="cuda"),
-            lora_b=torch.rand([rank, output_dim], device="cuda"),
+            lora_a=torch.rand([input_dim, rank], device="npu"),
+            lora_b=torch.rand([rank, output_dim], device="npu"),
             embeddings_tensor=embeddings_tensor,
         )
         self.set_module_lora(module_name, lora)

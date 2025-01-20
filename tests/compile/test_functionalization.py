@@ -41,11 +41,11 @@ prompts = [
      ("nm-testing/TinyLlama-1.1B-Chat-v1.0-FP8_DYNAMIC-e2e",
       kFp8DynamicTokenSym)])
 @pytest.mark.parametrize("do_fusion", [True, False])
-@pytest.mark.skipif(envs.VLLM_TARGET_DEVICE != "cuda",
+@pytest.mark.skipif(envs.VLLM_TARGET_DEVICE != "npu",
                     reason="Only test on CUDA")
 def test_fix_functionalization(model: str, quant_key: QuantKey,
                                do_fusion: bool):
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
 
     config = CompilationConfig.PassConfig(enable_fusion=do_fusion,
                                           enable_reshape=True)

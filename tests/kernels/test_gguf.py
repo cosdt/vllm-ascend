@@ -62,8 +62,8 @@ def test_dequantize(hidden_size: int, dtype: torch.dtype,
         shape = map(int, shape_str.split("x"))
 
         ref_output = torch.tensor(dequantize(tensor.data, quant_type),
-                                  device="cuda").to(dtype)
-        output = ops.ggml_dequantize(torch.tensor(tensor.data, device="cuda"),
+                                  device="npu").to(dtype)
+        output = ops.ggml_dequantize(torch.tensor(tensor.data, device="npu"),
                                      quant_type, *list(shape)).to(dtype)
 
         torch.testing.assert_close(output, ref_output, atol=1e-2, rtol=4e-2)
@@ -78,13 +78,13 @@ def test_mmvq(hidden_size: int, dtype: torch.dtype,
     current_platform.seed_everything(0)
 
     tensors = get_gguf_sample_tensors(hidden_size, quant_type)
-    x = torch.rand((1, hidden_size), dtype=dtype, device="cuda")
+    x = torch.rand((1, hidden_size), dtype=dtype, device="npu")
     for tensor in tensors:
         weight = torch.tensor(dequantize(tensor.data, quant_type),
-                              device="cuda").to(dtype)
+                              device="npu").to(dtype)
         ref_output = x @ weight.T
 
-        qweight = torch.tensor(tensor.data, device="cuda")
+        qweight = torch.tensor(tensor.data, device="npu")
         output = ops.ggml_mul_mat_vec_a8(qweight, x, quant_type,
                                          qweight.shape[0]).to(dtype)
 
@@ -114,13 +114,13 @@ def test_mmq(num_tokens: int, hidden_size: int, dtype: torch.dtype,
     current_platform.seed_everything(0)
 
     tensors = get_gguf_sample_tensors(hidden_size, quant_type)
-    x = torch.rand((num_tokens, hidden_size), dtype=dtype, device="cuda")
+    x = torch.rand((num_tokens, hidden_size), dtype=dtype, device="npu")
     for tensor in tensors:
         weight = torch.tensor(dequantize(tensor.data, quant_type),
-                              device="cuda").to(dtype)
+                              device="npu").to(dtype)
         ref_output = x @ weight.T
 
-        qweight = torch.tensor(tensor.data, device="cuda")
+        qweight = torch.tensor(tensor.data, device="npu")
         output = ops.ggml_mul_mat_a8(qweight, x, quant_type,
                                      qweight.shape[0]).to(dtype)
 

@@ -288,7 +288,7 @@ def test_memory_profiling():
 
     # load weights
 
-    weights = torch.randn(128, 1024, 1024, device='cuda', dtype=torch.float32)
+    weights = torch.randn(128, 1024, 1024, device="npu", dtype=torch.float32)
 
     weights_memory = 128 * 1024 * 1024 * 4 # 512 MiB
 
@@ -303,7 +303,7 @@ def test_memory_profiling():
     weights_memory=weights_memory) as result, \
         monitor(measure_current_non_torch) as monitored_values:
         # make a memory spike, 1 GiB
-        spike = torch.randn(256, 1024, 1024, device='cuda', dtype=torch.float32)
+        spike = torch.randn(256, 1024, 1024, device="npu", dtype=torch.float32)
         del spike
 
         # Add some extra non-torch memory 256 MiB (simulate NCCL)

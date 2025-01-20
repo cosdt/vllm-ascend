@@ -25,7 +25,7 @@ def test_merge_kernel(
     head_size: int,
     dtype: torch.dtype,
 ):
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     current_platform.seed_everything(0)
     num_query_heads = num_heads[0]
     num_kv_heads = num_heads[1]
@@ -88,7 +88,7 @@ def test_cascade(
     soft_cap: Optional[float],
     num_blocks: int,
 ) -> None:
-    torch.set_default_device("cuda")
+    torch.set_default_device("npu")
     current_platform.seed_everything(0)
 
     window_size = (-1, -1)

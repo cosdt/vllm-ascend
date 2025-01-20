@@ -41,9 +41,9 @@ def test_fused_marlin_moe_awq(
     num_bits = 4
     quant_type = scalar_types.uint4
     dtype = torch.float16
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w1 = torch.randn((e, 2 * n, k), device="cuda", dtype=dtype) / 10
-    w2 = torch.randn((e, k, n), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="npu", dtype=dtype) / 10
+    w1 = torch.randn((e, 2 * n, k), device="npu", dtype=dtype) / 10
+    w2 = torch.randn((e, k, n), device="npu", dtype=dtype) / 10
 
     w_ref1_l = []
     qweights1_l = []
@@ -81,7 +81,7 @@ def test_fused_marlin_moe_awq(
     scales2 = stack_and_dev(scales2_l)
     zp2 = stack_and_dev(zp2_l)
 
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="npu", dtype=dtype)
 
     topk_weights, topk_ids = fused_topk(a, score, topk, False)
     marlin_output = torch.ops.vllm.fused_marlin_moe(
@@ -130,8 +130,8 @@ def test_single_marlin_moe_multiply_awq(
     num_bits = 4
     quant_type = scalar_types.uint4
     dtype = torch.float16
-    a = torch.randn((m, k), device="cuda", dtype=dtype) / 10
-    w = torch.randn((e, n, k), device="cuda", dtype=dtype) / 10
+    a = torch.randn((m, k), device="npu", dtype=dtype) / 10
+    w = torch.randn((e, n, k), device="npu", dtype=dtype) / 10
 
     w_ref_l = []
     qweights_l = []
@@ -151,7 +151,7 @@ def test_single_marlin_moe_multiply_awq(
     scales = stack_and_dev(scales_l).contiguous()
     zp = stack_and_dev(zp_l).contiguous()
 
-    score = torch.randn((m, e), device="cuda", dtype=dtype)
+    score = torch.randn((m, e), device="npu", dtype=dtype)
 
     marlin_output = torch.ops.vllm.single_marlin_moe(a,
                                                      qweight,

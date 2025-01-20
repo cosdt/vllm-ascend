@@ -51,7 +51,7 @@ def to_int8(tensor: torch.Tensor):
     return torch.round(tensor.clamp(min=-128, max=127)).to(dtype=torch.int8)
 
 
-def rand_int8(shape: tuple, device: str = "cuda"):
+def rand_int8(shape: tuple, device: str = "npu"):
     return to_int8(torch.rand(shape, device=device) * 255 - 128)
 
 
@@ -76,7 +76,7 @@ def cutlass_fp8_gemm_helper(m: int,
                             per_out_channel_weight_quant: bool,
                             use_bias: bool,
                             out_dtype: Type[torch.dtype] = torch.bfloat16,
-                            device: str = "cuda"):
+                            device: str = "npu"):
     # Test for a cutlass kernel with per-token activation quantization
     # and per-output channel weight quantization.
     a = to_fp8(torch.randn((m, k), device=device))
@@ -110,7 +110,7 @@ def cutlass_int8_gemm_helper(m: int,
                              per_out_channel_weight_quant: bool,
                              use_bias: bool,
                              out_dtype: Type[torch.dtype] = torch.bfloat16,
-                             device: str = "cuda"):
+                             device: str = "npu"):
     # Test for a cutlass kernel with per-token activation quantization
     # and per-output channel weight quantization.
     a = to_int8(torch.randn((m, k), device=device) * 5)
@@ -258,8 +258,8 @@ def test_cutlass_int8_azp_bias_fold(m: int, n: int, k: int,
                                     out_dtype: torch.dtype):
     # Currently, the test is failing because folding azp into
     # 16-bit bias loses too much precision
-    scale_a = torch.randn((1, 1), device="cuda", dtype=torch.float32) / 10
-    scale_b = torch.randn((1, n), device="cuda", dtype=torch.float32) / 10
+    scale_a = torch.randn((1, 1), device="npu", dtype=torch.float32) / 10
+    scale_b = torch.randn((1, n), device="npu", dtype=torch.float32) / 10
 
     aq_i8 = rand_int8((m, k))
     bq_i8 = rand_int8((n, k)).t()
@@ -272,7 +272,7 @@ def test_cutlass_int8_azp_bias_fold(m: int, n: int, k: int,
 
     b_dq = scale_b * bq_f32
 
-    azp_a = torch.rand((1, ), device="cuda", dtype=torch.float32) * 10 + 1.5
+    azp_a = torch.rand((1, ), device="npu", dtype=torch.float32) * 10 + 1.5
     azp_aq_i8 = (azp_a / scale_a).to(dtype=torch.int8)
     azp_a = azp_aq_i8.to(dtype=torch.float32) * scale_a  # correct for rounding
 
@@ -281,14 +281,14 @@ def test_cutlass_int8_azp_bias_fold(m: int, n: int, k: int,
 
     baseline_dq = torch.mm(a_dq, b_dq).to(out_dtype)
 
-    J = torch.ones((1, k), device="cuda", dtype=torch.float32)
+    J = torch.ones((1, k), device="npu", dtype=torch.float32)
     azp_bias = (azp_a * scale_b * (J @ bq_f32)).to(out_dtype)
     assert azp_bias.shape == (1, n)
     assert azp_bias[0, :].shape == (n, )
 
     baseline_q = (scale_a.to(device='cpu') * scale_b.to(device='cpu') * (
         (aq_i32 + azp_aq_i8).to(device='cpu') @ bq_i32.to(device='cpu'))).to(
-            dtype=out_dtype, device='cuda')
+            dtype=out_dtype, device="npu")
 
     out = ops.cutlass_scaled_mm(aq_i8,
                                 bq_i8,
@@ -309,8 +309,8 @@ def test_cutlass_int8_azp_bias_fold(m: int, n: int, k: int,
 def test_cutlass_int8_azp(m: int, n: int, k: int, out_dtype: torch.dtype,
                           use_bias: bool, azp_per_token: bool):
     m_azp = m if azp_per_token else 1
-    scale_a = torch.randn((m_azp, 1), device="cuda", dtype=torch.float32) / 10
-    scale_b = torch.randn((1, n), device="cuda", dtype=torch.float32) / 10
+    scale_a = torch.randn((m_azp, 1), device="npu", dtype=torch.float32) / 10
+    scale_b = torch.randn((1, n), device="npu", dtype=torch.float32) / 10
 
     aq_i8 = rand_int8((m, k))
     aq_i32 = aq_i8.to(dtype=torch.int32)
@@ -322,7 +322,7 @@ def test_cutlass_int8_azp(m: int, n: int, k: int, out_dtype: torch.dtype,
     b_dq = scale_b * bq_f32
 
     azp_a = torch.rand(
-        (m_azp, 1), device="cuda", dtype=torch.float32) * 10 + 1.5
+        (m_azp, 1), device="npu", dtype=torch.float32) * 10 + 1.5
     azp_aq_i8 = (azp_a / scale_a).to(dtype=torch.int8)
     azp_a = azp_aq_i8.to(dtype=torch.float32) * scale_a  # correct for rounding
 
@@ -333,15 +333,15 @@ def test_cutlass_int8_azp(m: int, n: int, k: int, out_dtype: torch.dtype,
                                atol=1e-3)
 
     if use_bias:
-        bias = torch.rand((1, n), device="cuda", dtype=out_dtype) * 10 + 2.5
+        bias = torch.rand((1, n), device="npu", dtype=out_dtype) * 10 + 2.5
     else:
-        bias = torch.zeros((1, n), device="cuda", dtype=out_dtype)
+        bias = torch.zeros((1, n), device="npu", dtype=out_dtype)
 
     baseline_dq = (torch.mm(a_dq, b_dq) + bias).to(out_dtype)
 
     # int32 mm not supported on CUDA
     a_noazp_i32_cpu = (aq_i32 - azp_aq_i8).to(device='cpu')
-    cq = (a_noazp_i32_cpu @ bq_i32.to(device='cpu')).to(device='cuda')
+    cq = (a_noazp_i32_cpu @ bq_i32.to(device='cpu')).to(device="npu")
     baseline_q = (scale_a * scale_b * cq + bias).to(dtype=out_dtype)
 
     # Hadamard is just the sum of the cols
@@ -381,13 +381,13 @@ def test_cutlass_subset():
     big_m, big_n, big_k = 1024, 1024, 1024
     m, n, k = 512, 512, 512
 
-    whole_a = to_int8(torch.randn((big_m, big_k), device="cuda") * 5)
-    whole_b = to_int8(torch.randn((big_n, big_k), device="cuda").t() * 5)
+    whole_a = to_int8(torch.randn((big_m, big_k), device="npu") * 5)
+    whole_b = to_int8(torch.randn((big_n, big_k), device="npu").t() * 5)
     a = whole_a[0:m, 0:k]
     b = whole_b[0:k, 0:n]
 
-    scale_a = torch.randn((1, 1), device="cuda", dtype=torch.float32) / 10
-    scale_b = torch.randn((1, 1), device="cuda", dtype=torch.float32) / 10
+    scale_a = torch.randn((1, 1), device="npu", dtype=torch.float32) / 10
+    scale_b = torch.randn((1, 1), device="npu", dtype=torch.float32) / 10
 
     out = ops.cutlass_scaled_mm(a,
                                 b,
@@ -423,16 +423,16 @@ class CutlassLayer(torch.nn.Module):
 def test_cutlass_cuda_graph(per_act_token: bool, per_out_ch: bool):
     m, n, k = 512, 512, 512
 
-    a = to_int8(torch.randn((m, k), device="cuda"))
-    b = to_int8(torch.randn((n, k), device="cuda").t())
+    a = to_int8(torch.randn((m, k), device="npu"))
+    b = to_int8(torch.randn((n, k), device="npu").t())
 
     m_a_scales = m if per_act_token else 1
     n_b_scales = n if per_out_ch else 1
 
     scale_a = (torch.randn(
-        (m_a_scales, 1), device="cuda", dtype=torch.float32) / 10)
+        (m_a_scales, 1), device="npu", dtype=torch.float32) / 10)
     scale_b = (torch.randn(
-        (1, n_b_scales), device="cuda", dtype=torch.float32) / 10)
+        (1, n_b_scales), device="npu", dtype=torch.float32) / 10)
 
     # Construct a trivial model with a single layer that calls a CUTLASS kernel
     model = CutlassLayer(b, scale_a, scale_b, torch.bfloat16)

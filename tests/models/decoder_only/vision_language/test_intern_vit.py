@@ -35,9 +35,9 @@ def run_intern_vit_test(
 
     hf_model = AutoModel.from_pretrained(model,
                                          torch_dtype=dtype,
-                                         trust_remote_code=True).to("cuda")
+                                         trust_remote_code=True).to("npu")
     hf_outputs_per_image = [
-        hf_model(pixel_value.to("cuda")).last_hidden_state
+        hf_model(pixel_value.to("npu")).last_hidden_state
         for pixel_value in pixel_values
     ]
 
@@ -49,9 +49,9 @@ def run_intern_vit_test(
     del hf_model
     cleanup_dist_env_and_memory()
 
-    vllm_model = vllm_model.to("cuda", dtype)
+    vllm_model = vllm_model.to("npu", dtype)
     vllm_outputs_per_image = [
-        vllm_model(pixel_values=pixel_value.to("cuda"))
+        vllm_model(pixel_values=pixel_value.to("npu"))
         for pixel_value in pixel_values
     ]
     del vllm_model
