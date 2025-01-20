@@ -100,11 +100,6 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
 
         batch_size = len(input_tokens)
 
-        # If cuda graph can be used, pad tensors accordingly.
-        # See `capture_model` API for more details.
-        # vLLM uses cuda graph only for decoding requests.
-        cuda_graph_pad_size = -1
-
         if self.inter_data_list[0].is_prompt:
             input_tokens_tensor = make_tensor_with_pad(
                 input_tokens, 0, dtype=torch.int, device=self.runner.device)
@@ -144,12 +139,9 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
                     dtype=torch.long,
                     device=self.runner.device)
 
-        # Sequence and query lengths.
-        seq_lens.extend([1] * cuda_graph_pad_size)
-
         # Attention metadata.
         attn_metadata = self.attn_metadata_builder.build(
-            seq_lens, query_lens, cuda_graph_pad_size, batch_size)
+            seq_lens, query_lens, -1, batch_size)
 
         # LoRA data.
         lora_requests = set()
@@ -161,7 +153,6 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
                 flatten_2d_lists(inter_data.lora_index_mapping)
                 for inter_data in self.inter_data_list
             ])
-            lora_index_mapping.extend([0] * cuda_graph_pad_size)
             lora_prompt_mapping = flatten_2d_lists([
                 flatten_2d_lists(inter_data.lora_prompt_mapping)
                 for inter_data in self.inter_data_list
@@ -182,7 +173,6 @@ class ModelInputForNPUBuilder(ModelInputForGPUBuilder):
                 inter_data.prompt_adapter_index_mapping
                 for inter_data in self.inter_data_list
             ])
-            prompt_adapter_index_mapping.extend([0] * cuda_graph_pad_size)
             prompt_adapter_prompt_mapping = flatten_2d_lists([
                 inter_data.prompt_adapter_prompt_mapping
                 for inter_data in self.inter_data_list
@@ -569,7 +559,6 @@ class NPUModelRunner(ModelRunner):
         -> decode order. For example,
         - input_tokens[:num_prefill_tokens] contains prefill tokens.
         - input_tokens[num_prefill_tokens:] contains decode tokens.
-        If cuda graph is required, this API automatically pads inputs.
         """
         model_input = self._prepare_model_input_tensors(
             seq_group_metadata_list, finished_requests_ids)

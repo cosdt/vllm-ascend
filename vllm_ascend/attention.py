@@ -108,11 +108,6 @@ class AscendPagedAttention(PagedAttention):
 @dataclass
 class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     """Metadata for Ascendbackend.
-        * modified from XFormersbackend
-    NOTE: Any python object stored here is not updated when it is
-    cuda-graph replayed. If you have values that need to be changed
-    dynamically, it should be stored in tensor. The tensor has to be
-    updated from `CUDAGraphRunner.forward` API.
     """
 
     # |---------- N-1 iteration --------|
@@ -133,10 +128,9 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     # requests only.
     max_decode_seq_len: int
 
-    # Whether or not if cuda graph is enabled.
-    # Cuda-graph is currently enabled for decoding only.
-    # TODO(woosuk): Move `use_cuda_graph` out since it's unrelated to attention.
-    use_cuda_graph: bool
+    # TODO(cmq): delete me after model_runner is refactored without
+    # referencing gpumodelrunner.
+    use_cuda_graph: bool = False
 
     # (batch_size,). The sequence length per sequence. Sequence length means
     # the computed tokens + new tokens None if it is a decoding.
@@ -185,8 +179,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
     cross_slot_mapping: Optional[torch.Tensor] = None
     cross_block_tables: Optional[torch.Tensor] = None
 
-    # slot_mapping: Optional[torch.Tensor] = None
-
     @property
     def prefill_metadata(self) -> Optional["AscendMetadata"]:
         if self.num_prefills == 0:
@@ -233,7 +225,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
             seq_start_loc=seq_start_loc,
             context_lens_tensor=context_lens_tensor,
             block_tables=block_tables,
-            use_cuda_graph=False,
             # Begin encoder & cross attn fields below...
             encoder_seq_lens=self.encoder_seq_lens,
             encoder_seq_lens_tensor=self.encoder_seq_lens_tensor,
@@ -283,7 +274,6 @@ class AscendMetadata(AttentionMetadata, PagedAttentionMetadata):
             if self.seq_start_loc is not None else None,
             context_lens_tensor=None,
             block_tables=block_tables,
-            use_cuda_graph=self.use_cuda_graph,
             # Begin encoder & cross attn fields below...
             encoder_seq_lens=self.encoder_seq_lens,
             encoder_seq_lens_tensor=self.encoder_seq_lens_tensor,
@@ -472,7 +462,7 @@ class AscendAttentionBackendImpl(AttentionImpl):
             raise NotImplementedError("Encoder self-attention and "
                                       "encoder/decoder cross-attention "
                                       "are not implemented for "
-                                      "PallasAttentionBackendImpl")
+                                      "AscendAttentionBackendImpl")
         # view q k v to BSH
         num_tokens = query.shape[0]
 
