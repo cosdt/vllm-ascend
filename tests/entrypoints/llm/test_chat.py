@@ -3,6 +3,7 @@ from typing import List
 import pytest
 
 from vllm import LLM
+import vllm_ascend
 
 from ..openai.test_vision import TEST_IMAGE_URLS
 

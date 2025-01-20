@@ -11,6 +11,7 @@ from vllm.config import CompilationConfig
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.quantization.utils.w8a8_utils import (
     apply_fp8_linear)
+import vllm_ascend
 
 from .backend import TestBackend
 

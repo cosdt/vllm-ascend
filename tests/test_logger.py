@@ -14,6 +14,7 @@ import pytest
 from vllm.logger import (_DATE_FORMAT, _FORMAT, _configure_vllm_root_logger,
                          enable_trace_function_call, init_logger)
 from vllm.logging_utils import NewLineFormatter
+import vllm_ascend
 
 
 def f1(x):

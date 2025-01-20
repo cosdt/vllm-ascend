@@ -8,6 +8,7 @@ from vllm.compilation.config import CompilationConfig
 from vllm.compilation.inductor_pass import (CallableInductorPass,
                                             as_inductor_pass)
 from vllm.compilation.pass_manager import PostGradPassManager
+import vllm_ascend
 
 
 def simple_callable(graph: torch.fx.Graph):

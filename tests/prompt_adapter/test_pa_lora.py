@@ -3,6 +3,7 @@ from huggingface_hub import snapshot_download
 from vllm import EngineArgs, LLMEngine, SamplingParams
 from vllm.lora.request import LoRARequest
 from vllm.prompt_adapter.request import PromptAdapterRequest
+import vllm_ascend
 
 MODEL_PATH = "meta-llama/Llama-2-7b-hf"
 pa_path = snapshot_download(repo_id="swapnilbp/llama_tweet_ptune")

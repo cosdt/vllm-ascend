@@ -10,6 +10,7 @@ import torch.distributed as dist
 from vllm.distributed.device_communicators.cuda_wrapper import CudaRTLibrary
 from vllm.distributed.device_communicators.custom_all_reduce import (  # noqa
     CustomAllreduce)
+import vllm_ascend
 
 # create a cpu process group for communicating metadata (ipc handle)
 dist.init_process_group(backend="gloo")

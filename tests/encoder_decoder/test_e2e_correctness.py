@@ -11,6 +11,7 @@ from vllm.attention.selector import (_Backend, _cached_get_attn_backend,
                                      global_force_attn_backend_context_manager)
 from vllm.platforms import current_platform
 from vllm.sequence import SampleLogprobs
+import vllm_ascend
 
 from ..conftest import DecoderPromptType
 from ..models.utils import check_logprobs_close

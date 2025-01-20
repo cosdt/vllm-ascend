@@ -9,6 +9,7 @@ from vllm.compilation.fusion import (FUSED_OPS, FusionPass, QuantKey,
 from vllm.compilation.fx_utils import find_auto_fn, find_auto_fn_maybe, is_func
 from vllm.compilation.reshapes import RedundantReshapesPass
 from vllm.config import CompilationConfig
+import vllm_ascend
 
 from .backend import TestBackend
 

@@ -5,6 +5,7 @@ import pytest
 
 from vllm.config import CompilationLevel
 from vllm.utils import cuda_device_count_stateless
+import vllm_ascend
 
 from ..utils import compare_all_settings
 

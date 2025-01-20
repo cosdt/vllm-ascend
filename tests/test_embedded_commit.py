@@ -1,4 +1,5 @@
 import vllm
+import vllm_ascend
 
 
 def test_embedded_commit_defined():

@@ -11,6 +11,7 @@ from vllm.core.interfaces import AllocStatus
 from vllm.core.scheduler import Scheduler, SchedulingBudget
 from vllm.lora.request import LoRARequest
 from vllm.sequence import SequenceGroup
+import vllm_ascend
 
 from .utils import (append_new_token, append_new_token_seq,
                     append_new_token_seq_group, create_dummy_prompt,

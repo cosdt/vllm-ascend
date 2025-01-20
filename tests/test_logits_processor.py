@@ -10,6 +10,7 @@ from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.model_executor.utils import set_random_seed
 from vllm.sequence import SamplingParams, SequenceData, SequenceGroupMetadata
 from vllm.utils import is_pin_memory_available
+import vllm_ascend
 
 
 class MockLogitsProcessor(LogitsProcessor):

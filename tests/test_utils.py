@@ -13,6 +13,7 @@ from vllm.utils import (FlexibleArgumentParser, MemorySnapshot,
                         PlaceholderModule, StoreBoolean, bind_kv_cache,
                         deprecate_kwargs, get_open_port, memory_profiling,
                         merge_async_iterators, supports_kw)
+import vllm_ascend
 
 from .utils import error_on_warning, fork_new_process_for_each_test
 

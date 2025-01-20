@@ -10,6 +10,7 @@ import pytest
 import transformers
 
 from vllm import SamplingParams
+import vllm_ascend
 
 MODEL = "facebook/opt-350m"
 STOP_STR = "."

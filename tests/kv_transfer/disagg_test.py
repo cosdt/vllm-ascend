@@ -7,6 +7,7 @@ from subprocess import Popen
 import pytest
 import requests
 import torch
+import vllm_ascend
 
 
 # Fixture to set up environment variables and teardown servers after tests

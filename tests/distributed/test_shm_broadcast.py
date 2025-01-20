@@ -9,6 +9,7 @@ import torch.distributed as dist
 from vllm.distributed.device_communicators.shm_broadcast import MessageQueue
 from vllm.distributed.utils import StatelessProcessGroup
 from vllm.utils import get_ip, get_open_port, update_environment_variables
+import vllm_ascend
 
 
 def get_arrays(n: int, seed: int = 0) -> List[np.ndarray]:

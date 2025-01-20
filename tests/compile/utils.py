@@ -6,6 +6,7 @@ from tests.quantization.utils import is_quant_method_supported
 from vllm import LLM, SamplingParams
 from vllm.config import CompilationLevel
 from vllm.platforms import current_platform
+import vllm_ascend
 
 TEST_MODELS = [
     ("facebook/opt-125m", {}),

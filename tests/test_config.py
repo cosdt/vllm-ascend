@@ -5,6 +5,7 @@ import pytest
 from vllm.config import ModelConfig, PoolerConfig
 from vllm.model_executor.layers.pooler import PoolingType
 from vllm.platforms import current_platform
+import vllm_ascend
 
 
 @pytest.mark.parametrize(

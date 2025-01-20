@@ -9,6 +9,7 @@ from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.engine.llm_engine import LLMEngine
 from vllm.executor.uniproc_executor import UniProcExecutor
 from vllm.sampling_params import SamplingParams
+import vllm_ascend
 
 
 class Mock:

@@ -5,6 +5,7 @@ import pytest
 from vllm.config import PoolerConfig
 from vllm.engine.arg_utils import EngineArgs, nullable_kvs
 from vllm.utils import FlexibleArgumentParser
+import vllm_ascend
 
 
 @pytest.mark.parametrize(("arg", "expected"), [

@@ -11,6 +11,7 @@ import torch
 from vllm.distributed import (broadcast_tensor_dict, get_pp_group,
                               tensor_model_parallel_all_gather,
                               tensor_model_parallel_all_reduce)
+import vllm_ascend
 
 from ..utils import init_test_distributed_environment, multi_process_parallel
 

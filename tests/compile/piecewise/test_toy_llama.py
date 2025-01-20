@@ -18,6 +18,7 @@ from vllm.compilation.decorators import support_torch_compile
 from vllm.config import (CompilationConfig, CompilationLevel, VllmConfig,
                          set_current_vllm_config)
 from vllm.utils import direct_register_custom_op
+import vllm_ascend
 
 # create a library to hold the custom op
 silly_lib = Library("silly", "FRAGMENT")  # noqa

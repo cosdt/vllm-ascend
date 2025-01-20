@@ -11,6 +11,7 @@ import lm_eval
 import pytest
 
 from vllm.platforms import current_platform
+import vllm_ascend
 
 MODEL_NAME = "Qwen/Qwen2-1.5B-Instruct"
 NUM_CONCURRENT = 500

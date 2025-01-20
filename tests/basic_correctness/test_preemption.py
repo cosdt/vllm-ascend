@@ -12,6 +12,7 @@ import vllm.envs as envs
 from vllm import SamplingParams
 from vllm.core.scheduler import (ARTIFICIAL_PREEMPTION_MAX_CNT,
                                  ENABLE_ARTIFICIAL_PREEMPT)
+import vllm_ascend
 
 from ..models.utils import check_outputs_equal
 

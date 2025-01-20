@@ -4,6 +4,7 @@ import pytest
 
 from vllm.inputs import zip_enc_dec_prompts
 from vllm.inputs.parse import parse_and_batch_prompt
+import vllm_ascend
 
 STRING_INPUTS = [
     '',

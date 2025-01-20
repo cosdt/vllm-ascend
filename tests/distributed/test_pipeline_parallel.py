@@ -13,6 +13,7 @@ import pytest
 
 from vllm.config import TaskOption
 from vllm.logger import init_logger
+import vllm_ascend
 
 from ..utils import compare_two_settings, fork_new_process_for_each_test
 

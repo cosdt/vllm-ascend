@@ -3,6 +3,7 @@ import os
 import pytest
 
 from vllm.distributed.utils import get_pp_indices
+import vllm_ascend
 
 
 def test_custom_layer_partition():

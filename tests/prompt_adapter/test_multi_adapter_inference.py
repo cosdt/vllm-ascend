@@ -1,5 +1,6 @@
 from vllm import EngineArgs, LLMEngine, SamplingParams
 from vllm.prompt_adapter.request import PromptAdapterRequest
+import vllm_ascend
 
 MODEL_PATH = "bigscience/bloomz-560m"
 pa_path = 'stevhliu/bloomz-560m_PROMPT_TUNING_CAUSAL_LM'

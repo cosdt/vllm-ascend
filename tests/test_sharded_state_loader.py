@@ -9,6 +9,7 @@ from huggingface_hub import snapshot_download
 
 from vllm import LLM, SamplingParams
 from vllm.model_executor.model_loader.loader import ShardedStateLoader
+import vllm_ascend
 
 prompts = [
     "Hello, my name is",

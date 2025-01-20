@@ -4,6 +4,7 @@ import torch
 
 from vllm.compilation.wrapper import TorchCompileWrapperWithCustomDispatcher
 from vllm.config import CompilationLevel
+import vllm_ascend
 
 
 class MyMod(torch.nn.Module):

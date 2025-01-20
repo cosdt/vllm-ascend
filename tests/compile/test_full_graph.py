@@ -1,6 +1,7 @@
 import pytest
 
 from vllm.config import CompilationLevel
+import vllm_ascend
 
 from ..utils import fork_new_process_for_each_test
 from .utils import TEST_MODELS, check_full_graph_support

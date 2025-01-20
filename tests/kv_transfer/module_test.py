@@ -3,6 +3,7 @@ import sys
 
 import pytest
 import torch
+import vllm_ascend
 
 
 def run_python_script(script_name, timeout):

@@ -9,6 +9,7 @@ import gc
 import torch
 
 from vllm import LLM, SamplingParams
+import vllm_ascend
 
 
 def test_duplicated_ignored_sequence_group():

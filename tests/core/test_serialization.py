@@ -2,6 +2,7 @@ import msgspec
 
 from vllm.executor.msgspec_utils import decode_hook, encode_hook
 from vllm.sequence import ExecuteModelRequest
+import vllm_ascend
 
 from ..spec_decode.utils import create_batch
 

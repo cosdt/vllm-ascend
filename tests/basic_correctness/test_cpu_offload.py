@@ -1,4 +1,5 @@
 from ..utils import compare_two_settings
+import vllm_ascend
 
 
 def test_cpu_offload():

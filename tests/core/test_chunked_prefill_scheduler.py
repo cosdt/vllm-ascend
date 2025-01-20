@@ -6,6 +6,7 @@ import pytest  # noqa
 from vllm.config import CacheConfig, SchedulerConfig
 from vllm.core.scheduler import Scheduler
 from vllm.sequence import Logprob, SequenceGroup
+import vllm_ascend
 
 from .utils import create_dummy_prompt
 

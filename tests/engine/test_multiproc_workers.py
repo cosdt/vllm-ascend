@@ -10,6 +10,7 @@ from vllm.config import VllmConfig
 from vllm.executor.multiproc_worker_utils import (ProcessWorkerWrapper,
                                                   ResultHandler, WorkerMonitor)
 from vllm.worker.worker_base import WorkerWrapperBase
+import vllm_ascend
 
 
 class DummyWorkerWrapper(WorkerWrapperBase):

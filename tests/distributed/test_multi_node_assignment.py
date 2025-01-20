@@ -18,6 +18,7 @@ from vllm import initialize_ray_cluster
 from vllm.config import ParallelConfig
 from vllm.executor.ray_utils import _wait_until_pg_removed
 from vllm.utils import get_ip
+import vllm_ascend
 
 VLLM_MULTI_NODE = os.getenv("VLLM_MULTI_NODE", "0") == "1"
 

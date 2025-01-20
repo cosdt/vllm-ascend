@@ -8,6 +8,7 @@ import vllm.entrypoints.api_server
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.utils import FlexibleArgumentParser
+import vllm_ascend
 
 app = vllm.entrypoints.api_server.app
 

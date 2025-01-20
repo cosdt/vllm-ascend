@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from vllm.platforms import current_platform
+import vllm_ascend
 
 MAX_MODEL_LEN = 1024
 MODEL_NAME = os.environ.get("MODEL_NAME",

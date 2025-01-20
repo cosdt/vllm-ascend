@@ -2,6 +2,7 @@ import pytest
 
 from vllm.engine.async_llm_engine import RequestTracker
 from vllm.outputs import RequestOutput
+import vllm_ascend
 
 
 @pytest.mark.asyncio

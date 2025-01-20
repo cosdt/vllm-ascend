@@ -10,6 +10,7 @@ from vllm.inputs import EncoderDecoderInputs, token_inputs
 from vllm.lora.request import LoRARequest
 from vllm.sequence import (Logprob, Sequence, SequenceGroup,
                            SequenceGroupMetadata)
+import vllm_ascend
 
 
 def create_dummy_prompt(

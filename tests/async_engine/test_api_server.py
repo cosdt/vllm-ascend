@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import requests
+import vllm_ascend
 
 
 def _query_server(prompt: str, max_tokens: int = 5) -> dict:

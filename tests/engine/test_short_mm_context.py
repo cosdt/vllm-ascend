@@ -1,4 +1,5 @@
 import pytest
+import vllm_ascend
 
 from ..conftest import IMAGE_ASSETS
 

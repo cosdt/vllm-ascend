@@ -10,6 +10,7 @@ from vllm.inputs import token_inputs
 from vllm.lora.request import LoRARequest
 from vllm.sequence import Sequence
 from vllm.transformers_utils.tokenizer_group import TokenizerGroup
+import vllm_ascend
 
 # Make two prefixes with different first blocks.
 prefix_start = [("You are an expert"), ("You are a")]

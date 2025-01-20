@@ -13,6 +13,7 @@ import pytest
 from vllm import LLM
 from vllm.platforms import current_platform
 from vllm.worker.model_runner import ModelInputForGPUWithSamplingMetadata
+import vllm_ascend
 
 from ..conftest import VllmRunner
 from ..models.utils import check_outputs_equal

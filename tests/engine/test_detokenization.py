@@ -2,6 +2,7 @@ import pytest
 
 from vllm.entrypoints.llm import LLM
 from vllm.sampling_params import SamplingParams
+import vllm_ascend
 
 
 @pytest.mark.parametrize("model", ["facebook/opt-125m"])

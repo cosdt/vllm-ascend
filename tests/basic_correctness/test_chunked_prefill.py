@@ -16,6 +16,7 @@ from vllm.platforms import current_platform
 
 from ..models.utils import check_logprobs_close, check_outputs_equal
 from ..utils import multi_gpu_test
+import vllm_ascend
 
 MODELS = [
     "facebook/opt-125m",

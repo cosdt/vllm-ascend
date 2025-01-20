@@ -1,6 +1,7 @@
 """Tests for the SamplingParams class.
 """
 from vllm import SamplingParams
+import vllm_ascend
 
 
 def test_max_tokens_none():

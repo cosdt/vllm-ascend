@@ -5,6 +5,7 @@ import sys
 from contextlib import nullcontext
 
 from vllm_test_utils import BlameResult, blame
+import vllm_ascend
 
 module_name = "torch._inductor.async_compile"
 

@@ -5,6 +5,7 @@ from tests.core.utils import create_dummy_prompt
 from vllm.engine.llm_engine import LLMEngine
 from vllm.platforms import current_platform
 from vllm.sequence import SequenceGroup
+import vllm_ascend
 
 MODEL = "JackFram/llama-160m"
 
