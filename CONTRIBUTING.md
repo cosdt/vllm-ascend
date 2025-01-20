@@ -30,11 +30,11 @@ Only specific types of PRs will be reviewed. The PR title is prefixed appropriat
 - `[Comm]` for new features or optimization in communicators.
 - `[Model Runner]` for new features or optimization in model runner.
 - `[Worker]` for new features or optimization in worker.
-- `[Ops]` for adding a new ops or improving an existing ops. Op name should appear in the title.
+- `[Op]` for adding a new ops or improving an existing ops. Op name should appear in the title.
 - `[Model]` for adding a new model or improving an existing model. Model name should appear in the title.
 - `[Bugfix]` for bug fixes.
 - `[Doc]` for documentation fixes and improvements.
-- `[Tools]` for format scripts or other tools.
+- `[Tool]` for format scripts or other tools.
 - `[CI]` for build or continuous integration improvements.
 - `[Misc]` for PRs that do not fit the above categories. Please use this sparingly.
 
