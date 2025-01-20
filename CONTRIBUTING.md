@@ -6,30 +6,36 @@ When contributing changes to this project, you must agree to the DCO. Commits mu
 
 Using `-s` with `git commit` will automatically add this header.
 
-## Linting and formatting
+## Testing
 
 ```bash
-pip install -r requirements-lint.txt
+pip install -r requirements-dev.txt
 
 # 1. Do work and commit your work.
 # 2. Format files that differ from origin/main.
 bash format.sh
 # 3. Commit changed files with message 'Run yapf and ruff'
 git commit -sm "Run yapf and ruff"
+
+# Unit tests
+pytest tests/
 ```
 
 ## PR Title and Classification
 
 Only specific types of PRs will be reviewed. The PR title is prefixed appropriately to indicate the type of change. Please use one of the following:
 
-- `[Bugfix]` for bug fixes.
-- `[CI/Build]` for build or continuous integration improvements.
-- `[Doc]` for documentation fixes and improvements.
+- `[Plat]` for new features or optimization in platform.
+- `[Attn]` for new features or optimization in attention.
+- `[Comm]` for new features or optimization in communicators.
+- `[Model Runner]` for new features or optimization in model runner.
+- `[Worker]` for new features or optimization in worker.
+- `[Ops]` for adding a new ops or improving an existing ops. Op name should appear in the title.
 - `[Model]` for adding a new model or improving an existing model. Model name should appear in the title.
-- `[Frontend]` For changes on the vLLM frontend (e.g., OpenAI API server, `LLM` class, etc.)
-- `[Kernel]` for changes affecting CUDA kernels or other compute kernels.
-- `[Core]` for changes in the core vLLM logic (e.g., `LLMEngine`, `AsyncLLMEngine`, `Scheduler`, etc.)
-- `[Hardware][Vendor]` for hardware-specific changes. Vendor name should appear in the prefix (e.g., [Hardware][AMD]).
+- `[Bugfix]` for bug fixes.
+- `[Doc]` for documentation fixes and improvements.
+- `[Tools]` for format scripts or other tools.
+- `[CI]` for build or continuous integration improvements.
 - `[Misc]` for PRs that do not fit the above categories. Please use this sparingly.
 
 > [!NOTE]
@@ -37,4 +43,4 @@ Only specific types of PRs will be reviewed. The PR title is prefixed appropriat
 
 ## Others
 
-You may find more information about contributing to vLLM on [<u>docs.vllm.ai</u>](https://docs.vllm.ai/en/latest/contributing/overview.html).
+You may find more information about contributing to vLLM Ascend backend plugin on [<u>docs.vllm.ai</u>](https://docs.vllm.ai/en/latest/contributing/overview.html).
