@@ -33,6 +33,7 @@ Only specific types of PRs will be reviewed. The PR title is prefixed appropriat
 - `[Bugfix]` for bug fixes.
 - `[Doc]` for documentation fixes and improvements.
 - `[Tool]` for format scripts or other tools.
+- `[UT]` for unit tests.
 - `[CI]` for build or continuous integration improvements.
 - `[Misc]` for PRs that do not fit the above categories. Please use this sparingly.
 
