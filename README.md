@@ -1,11 +1,13 @@
 <p align="center">
   <picture>
-    <img alt="vllm-ascend" src="https://github.com/user-attachments/assets/16e71f51-f127-410d-b821-4fdc9ea8adac" width=60%>
+    <!-- TODO: Replace tmp link to logo url after vllm-projects/vllm-ascend ready -->
+    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/4a958093-58b5-4772-a942-638b51ced646">
+    <img alt="vllm-ascend" src="https://github.com/user-attachments/assets/838afe2f-9a1d-42df-9758-d79b31556de0" width=55%>
   </picture>
 </p>
 
 <h3 align="center">
-vLLM Ascend Backend Plugin
+vLLM Ascend Plugin
 </h3>
 
 <p align="center">
@@ -19,11 +21,11 @@ vLLM Ascend Backend Plugin
 ---
 ## Overview
 
-vllm-ascend is a backend plugin for running vLLM on the Ascend NPU.
+`vllm-ascend` is a backend plugin for running vLLM on the Ascend NPU.
 
-This is the recommend way the vLLM community supports the Ascend backend, it follows [[RFC]: Hardware pluggable](https://github.com/vllm-project/vllm/issues/11162), through a decoupled way to integrate the Ascend NPU plug-in into vLLM.
+This plugin is the recommended approach for supporting the Ascend backend within the vLLM community. It adheres to the principles outlined in the [[RFC]: Hardware pluggable](https://github.com/vllm-project/vllm/issues/11162), providing a hardware-pluggable interface that decouples the integration of the Ascend NPU with vLLM.
 
-This enables the most popular open-source models, including Transformer-like, Mixture-of-Expert, Embedding, Multi-modal LLMs to run seamlessly on Ascend NPU.
+By using `vllm-ascend`, popular open-source models, including Transformer-like, Mixture-of-Expert, Embedding, Multi-modal LLMs can run seamlessly on the Ascend NPU.
 
 ## Prerequisites
 ### Support Devices
@@ -38,9 +40,9 @@ This enables the most popular open-source models, including Transformer-like, Mi
 | torch-npu    | >= 2.4.0   | [2.5.1rc1](https://gitee.com/ascend/pytorch/releases/tag/v6.0.0.alpha001-pytorch2.5.1)    | Required for vllm-ascend |
 | torch        | >= 2.4.0   | [2.5.1](https://github.com/pytorch/pytorch/releases/tag/v2.5.1)      | Required for torch-npu and vllm required |
 
-You can see more about how to prepare your environment [here](docs/environment.md)
+Find more about how to setup your environment in [here](docs/environment.md).
 
-## Getting Started
+## Getting Started  
 
 > [!NOTE]
 > Currently, we are actively collaborating with the vLLM community to support the Ascend backend plugin, once supported we use one line command `pip install vllm vllm-ascend` to compelete installation.
@@ -71,7 +73,7 @@ vllm serve Qwen/Qwen2.5-1.5B-Instruct
 curl http://localhost:8000/v1/models
 ```
 
-You can see more detail info in [vLLM Quickstart](https://docs.vllm.ai/en/latest/getting_started/quickstart.html).
+Find more details in the [vLLM Quickstart](https://docs.vllm.ai/en/latest/getting_started/quickstart.html).
 
 ## Building
 
@@ -97,11 +99,10 @@ We welcome and value any contributions and collaborations, here is a quick note 
 ```
 # Downloading and install dev requirements
 git clone https://github.com/vllm-project/vllm-ascend
-pip install -r requirements-lint.txt
+pip install -r requirements-dev.txt
 
 # Linting and formatting
 bash format.sh
 ```
 
-You can see detail info in [CONTRIBUTING.md](./CONTRIBUTING.md)
-
+Find more details in the [CONTRIBUTING.md](./CONTRIBUTING.md).
