@@ -11,14 +11,12 @@ Using `-s` with `git commit` will automatically add this header.
 ```bash
 pip install -r requirements-dev.txt
 
-# 1. Do work and commit your work.
-# 2. Format files that differ from origin/main.
+# 1. linting and formatting
 bash format.sh
-# 3. Commit changed files with message 'Run yapf and ruff'
-git commit -sm "Run yapf and ruff"
-
-# Unit tests
+# 2. Unit tests
 pytest tests/
+# 3. Commit changed files using `-s`
+git commit -sm "your commit info"
 ```
 
 ## PR Title and Classification
