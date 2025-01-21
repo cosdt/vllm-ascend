@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple, Type
 
 import torch
 import torch.distributed
+import torch_npu
 from vllm import envs
 from vllm.config import ParallelConfig, VllmConfig
 from vllm.distributed import (ensure_model_parallel_initialized,
@@ -104,7 +105,6 @@ class NPUWorker(Worker):
             torch_profiler_trace_dir = envs.VLLM_TORCH_PROFILER_DIR
             logger.info("Profiling enabled. Traces will be saved to: %s",
                         torch_profiler_trace_dir)
-            import torch_npu
 
             experimental_config = torch_npu.profiler._ExperimentalConfig(
                 export_type=torch_npu.profiler.ExportType.Text,
