@@ -16,11 +16,9 @@ from vllm.worker.model_runner import GPUModelRunnerBase
 from vllm.worker.pooling_model_runner import PoolingModelRunner
 from vllm.worker.worker import Worker
 from vllm.worker.worker_base import WorkerBase
-from vllm.logger import init_logger
 
 from vllm_ascend.model_runner import NPUModelRunner
-
-logger = init_logger(__name__)
+from vllm_ascend.utils import try_register_lib
 
 class NPUWorker(Worker):
     """A worker class that executes (a partition of) the model on a NPU.
@@ -40,7 +38,7 @@ class NPUWorker(Worker):
     ) -> None:
 
         WorkerBase.__init__(self, vllm_config=vllm_config)
-        register_lib(
+        try_register_lib(
             "mindie_turbo",
             "MindIE Turbo is installed. vLLM inference will be accelerated with MindIE Turbo."
         )
@@ -165,18 +163,6 @@ class NPUWorker(Worker):
         # Worker.determine_num_available_blocks() unified`
         current_platform.empty_cache()
         return num_npu_blocks, num_cpu_blocks
-    
-
-def register_lib(lib_name: str, lib_info: str = None):
-    import importlib
-    try:
-        module_spec = importlib.util.find_spec(lib_name)
-        if module_spec is not None:
-            importlib.import_module(lib_name)
-            if lib_info is not None:
-                logger.info(lib_info)
-    except Exception:
-        logger.warning(f"Fail to find module {lib_name} in your environment. Skip importing {lib_name}.") 
 
 
 def init_worker_distributed_environment(
