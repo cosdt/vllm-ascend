@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional, Set, Type
 
 import torch
 import torch.distributed
+from torch import nn
 from vllm.distributed import get_pp_group
 from vllm.logger import init_logger
 from vllm.lora.layers import LoRAMapping
@@ -595,3 +596,6 @@ class NPUModelRunner(ModelRunner):
                                    sampling_metadata=sampling_metadata,
                                    is_prompt=is_prompt,
                                    virtual_engine=virtual_engine)
+
+    def get_model(self) -> nn.Module:
+        return self.model
