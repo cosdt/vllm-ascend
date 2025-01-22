@@ -18,7 +18,7 @@ from vllm.worker.worker import Worker
 from vllm.worker.worker_base import WorkerBase
 
 from vllm_ascend.model_runner import NPUModelRunner
-
+from vllm_ascend.utils import try_register_lib
 
 class NPUWorker(Worker):
     """A worker class that executes (a partition of) the model on a NPU.
@@ -38,13 +38,10 @@ class NPUWorker(Worker):
     ) -> None:
 
         WorkerBase.__init__(self, vllm_config=vllm_config)
-
-        # super.__init__(self, vllm_config=vllm_config,
-        #                local_rank=local_rank,
-        #                rank=rank,
-        #                distributed_init_method=distributed_init_method,
-        #                is_driver_worker=is_driver_worker,
-        #                model_runner_cls=model_runner_cls)
+        try_register_lib(
+            "mindie_turbo",
+            "MindIE Turbo is installed. vLLM inference will be accelerated with MindIE Turbo."
+        )
 
         self.parallel_config.rank = rank
         self.local_rank = local_rank
