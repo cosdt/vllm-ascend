@@ -74,10 +74,10 @@ jobs:
 
       - name: copy vllm
         run: |
-          cp -r /root/vllm /root/copy/vllm
+          cp -r /root/vllm /root/vllm-cpu
 
       - name: Install vLLM from source
-        working-directory: /root/copy/vllm
+        working-directory: /root/vllm-cpu
         env:
           HTTPS_PROXY: ${{ secrets.MY_PROXY }}
         # TODO: pull the latest code of vLLM
