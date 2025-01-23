@@ -1,14 +1,19 @@
-"""
-Copyright (c) Huawei Technologies Co., Ltd. 2024-2025. All rights reserved.
-MindIE is licensed under Mulan PSL v2.
-You can use this software according to the terms and conditions of the Mulan PSL v2.
-You may obtain a copy of Mulan PSL v2 at:
-         http://license.coscl.org.cn/MulanPSL2
-THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-See the Mulan PSL v2 for more details.
-"""
+#
+# Copyright (c) 2025 Huawei Technologies Co., Ltd. All Rights Reserved.
+# This file is a part of the vllm-ascend project.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 from typing import Any, Dict, List, Optional
 
@@ -26,21 +31,22 @@ from vllm.model_executor.parameter import (BasevLLMParameter,
                                            PackedvLLMParameter,
                                            ModelWeightParameter)
 try:
-    from mindie_turbo import get_quantizer, BaseQuantizer
+    from mindie_turbo import MindIETurboQuantizer
 except:
-    pass
+    NotImplementedError("Currently Ascend quantization only supports implementations from MindIETurbo plugins.")
 
 logger = init_logger(__name__)
 
 @register_quantization_config("ascend")
-class AscendConfig(QuantizationConfig):
+class AscendQuantConfig(QuantizationConfig):
     """Config class for Ascend"""
 
-    def __init__(self, quantizer: BaseQuantizer):
-        self.quantizer = quantizer
+    def __init__(self, quant_config: Dict[str, Any]):
+        self.quant_config = quant_config
+        self.quantizer = MindIETurboQuantizer.get_quantizer(quant_config)
 
     def __repr__(self) -> str:
-        return "AscendConfig:\n" + super().__repr__()
+        return "AscendQuantConfig:\n" + super().__repr__()
 
     @classmethod
     def get_name(cls) -> str:
@@ -48,19 +54,19 @@ class AscendConfig(QuantizationConfig):
 
     @classmethod
     def get_supported_act_dtypes(cls) -> List[torch.dtype]:
-        return [torch.half, torch.bfloat16]
+        return [torch.int8, torch.float16, torch.bfloat16]
 
     @classmethod
     def get_min_capability(cls) -> int:
-        return 80
+        raise NotImplementedError("Ascend hardware dose not support \"get_min_capability\" feature.")
 
     @classmethod
     def get_config_filenames(cls) -> List[str]:
-        return ["quantize_config.json"]
+        return []
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any]) -> "AscendConfig":
-        return cls(get_quantizer(config))
+    def from_config(cls, config: Dict[str, Any]) -> "AscendQuantConfig":
+        return cls(config)
 
     @classmethod
     def override_quantization_method(cls, hf_quant_cfg,
@@ -73,7 +79,7 @@ class AscendConfig(QuantizationConfig):
     def get_quant_method(self, layer: torch.nn.Module,
                          prefix: str) -> Optional["QuantizeMethodBase"]:
         if isinstance(layer, LinearBase):
-            return AscendLinearMethod(self.quantizer)
+            return AscendLinearMethod(self)
         return None
 
     def get_scaled_act_names(self) -> List[str]:
@@ -84,11 +90,12 @@ class AscendLinearMethod(LinearMethodBase):
     """Linear method for Ascend quantization.
 
     Args:
-        quantizer: The Ascend quantization interface.
+        quant_config: The Ascend quantization config.
     """
 
-    def __init__(self, quantizer: BaseQuantizer) -> None:
-        self.quantizer = quantizer
+    def __init__(self, quant_config: AscendQuantConfig) -> None:
+        self.quantizer = quant_config.quantizer
+        self.quant_method = self.quantizer.build_linear_method()
 
     def create_weights(
         self,
@@ -103,72 +110,59 @@ class AscendLinearMethod(LinearMethodBase):
         del output_size
         output_size_per_partition = sum(output_partition_sizes)
         weight_loader = extra_weight_attrs.get("weight_loader")
-
-        # Normalize group_size
-        # if self.quantizer.group_size <= 0:
-        #     group_size = self.quant_config.group_size
-        # else:
-        #     group_size = input_size
-
-        layer.input_size = input_size_per_partition
-        layer.output_size = output_size_per_partition
         
-        self.quantizer.register_linear_parameter(
+        weights = self.quant_method.create_weights(
             layer,
-            layer.input_size,
-            layer.output_size,
+            input_size_per_partition,
+            output_size_per_partition,
             params_dtype
         )
-    
-        weight = self.quantizer.get_weight(layer)
-        if isinstance(layer, RowParallelLinear):
+
+        weight_name = self.quant_method.get_weight()
+        if weight_name in weights.keys():
             layer.register_parameter(
-                "weight",
+                weight_name,
                 ModelWeightParameter(
-                    data=self.quantizer.get_weight(layer).data.transpose(0, 1),
+                    data=weights[weight_name].transpose(0, 1),
                     input_dim=1,
                     output_dim=0,
                     weight_loader=weight_loader
                 )
             )
         else:
-            layer.register_parameter(
-                "weight",
-                ModelWeightParameter(
-                    data=self.quantizer.get_weight(layer).data,
-                    input_dim=0,
-                    output_dim=1,
-                    weight_loader=weight_loader
-                )
-            )
+            raise ValueError(f"{weight_name} is nor registered. Please check your linear quant method implementation.")
         
-        pertensor_params = self.quantizer.get_pertensor_param(layer)
-        for name, param in pertensor_params.items():
-            layer.register_parameter(
-                name,
-                BasevLLMParameter(
-                    data=param.data,
-                    weight_loader=weight_loader
+        pertensor_names = self.quant_method.get_pertensor_param()
+        for pertensor_name in pertensor_names:
+            if pertensor_name in weights.keys():
+                layer.register_parameter(
+                    pertensor_name,
+                    BasevLLMParameter(
+                        data=weights[pertensor_name],
+                        weight_loader=weight_loader
+                    )
                 )
-            )
+            else:
+                raise ValueError(f"{pertensor_name} is nor registered. Please check your linear quant method implementation.")
         
-        perchannel_params = self.quantizer.get_perchannel_param(layer)
-        for name, param in perchannel_params.items():
-            layer.register_parameter(
-                name,
-                GroupQuantScaleParameter(
-                    data=param.data,
-                    input_dim=0,
-                    output_dim=0,
-                    weight_loader=weight_loader
+        perchannel_names = self.quant_method.get_perchannel_param()
+        for perchannel_name in perchannel_names:
+            if perchannel_name in weights.keys():
+                layer.register_parameter(
+                    perchannel_name,
+                    GroupQuantScaleParameter(
+                        data=weights[perchannel_name],
+                        input_dim=0,
+                        output_dim=0,
+                        weight_loader=weight_loader
+                    )
                 )
-            )
+            else:
+                raise ValueError(f"{perchannel_name} is nor registered. Please check your linear quant method implementation.")
 
     def process_weights_after_loading(self, layer: torch.nn.Module) -> None:
-        if isinstance(layer, RowParallelLinear):
+        if hasattr(self.quant_method, 'transpose_weight') and self.quant_method.transpose_weight:
             layer.weight.data = layer.weight.data.transpose(1, 0)
-        layer.input_scale = torch.nn.Parameter(torch.broadcast_to(layer.input_scale, (layer.input_size, )), requires_grad=False)
-        layer.input_offset = torch.nn.Parameter(torch.broadcast_to(layer.input_offset, (layer.input_size, )), requires_grad=False)
         
     def apply(
         self,
@@ -176,4 +170,4 @@ class AscendLinearMethod(LinearMethodBase):
         x: torch.Tensor,
         bias: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        return self.quantizer.linear_quant_method.apply(layer, x, bias)
+        return self.quant_method.apply(layer, x, bias)
