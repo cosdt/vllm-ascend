@@ -8,10 +8,10 @@ from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set,
 import torch
 import torch.distributed
 import torch.nn as nn
-import vllm.envs as envs
+
 from vllm.attention import AttentionMetadata, get_attn_backend
 from vllm.attention.backends.utils import CommonAttentionState
-from vllm.config import CompilationLevel, VllmConfig
+from vllm.config import VllmConfig
 from vllm.core.scheduler import SchedulerOutputs
 from vllm.distributed import get_kv_transfer_group, get_pp_group
 from vllm.forward_context import set_forward_context
@@ -19,13 +19,11 @@ from vllm.inputs import INPUT_REGISTRY, InputRegistry
 from vllm.logger import init_logger
 from vllm.lora.layers import LoRAMapping
 from vllm.lora.request import LoRARequest
-from vllm.lora.worker_manager import LRUCacheWorkerLoRAManager
 from vllm.model_executor import SamplingMetadata, SamplingMetadataCache
 from vllm.model_executor.layers.rotary_embedding import MRotaryEmbedding
 from vllm.model_executor.layers.sampler import SamplerOutput
 from vllm.model_executor.model_loader import get_model
 from vllm.model_executor.model_loader.tensorizer import TensorizerConfig
-from vllm.model_executor.models import supports_lora, supports_multimodal
 from vllm.model_executor.models.utils import set_cpu_offload_max_bytes
 from vllm.multimodal import (MULTIMODAL_REGISTRY, BatchedTensorInputs,
                              MultiModalKwargs, MultiModalPlaceholderMap,
@@ -33,13 +31,10 @@ from vllm.multimodal import (MULTIMODAL_REGISTRY, BatchedTensorInputs,
 from vllm.platforms import current_platform
 from vllm.prompt_adapter.layers import PromptAdapterMapping
 from vllm.prompt_adapter.request import PromptAdapterRequest
-from vllm.prompt_adapter.worker_manager import \
-    LRUCacheWorkerPromptAdapterManager
 from vllm.sampling_params import SamplingParams
 from vllm.sequence import IntermediateTensors, SequenceGroupMetadata
 from vllm.utils import (DeviceMemoryProfiler, PyObjectCache, flatten_2d_lists,
-                        is_pin_memory_available, make_tensor_with_pad,
-                        supports_dynamo)
+                        is_pin_memory_available, make_tensor_with_pad)
 from vllm.worker.model_runner_base import (
     ModelRunnerBase, ModelRunnerInputBase, ModelRunnerInputBuilderBase,
     _add_attn_metadata_broadcastable_dict,
@@ -51,8 +46,6 @@ if TYPE_CHECKING:
     from vllm.attention.backends.abstract import AttentionBackend
 
 logger = init_logger(__name__)
-
-LORA_WARMUP_RANK = 8
 
 TModelInputForNPU = TypeVar('TModelInputForNPU', bound="ModelInputForNPU")
 
@@ -70,11 +63,7 @@ class ModelInputForNPU(ModelRunnerInputBase):
     token_types: Optional[torch.Tensor] = None
     seq_lens: Optional[List[int]] = None
     query_lens: Optional[List[int]] = None
-    lora_mapping: Optional["LoRAMapping"] = None
-    lora_requests: Optional[Set[LoRARequest]] = None
     attn_metadata: Optional["AttentionMetadata"] = None
-    prompt_adapter_mapping: Optional[PromptAdapterMapping] = None
-    prompt_adapter_requests: Optional[Set[PromptAdapterRequest]] = None
     multi_modal_kwargs: Optional[BatchedTensorInputs] = None
     request_ids_to_seq_ids: Optional[Dict[str, List[int]]] = None
     finished_requests_ids: Optional[List[str]] = None
@@ -87,11 +76,7 @@ class ModelInputForNPU(ModelRunnerInputBase):
         tensor_dict = {
             "input_tokens": self.input_tokens,
             "input_positions": self.input_positions,
-            "lora_requests": self.lora_requests,
-            "lora_mapping": self.lora_mapping,
             "multi_modal_kwargs": self.multi_modal_kwargs,
-            "prompt_adapter_mapping": self.prompt_adapter_mapping,
-            "prompt_adapter_requests": self.prompt_adapter_requests,
             "virtual_engine": self.virtual_engine,
             "request_ids_to_seq_ids": self.request_ids_to_seq_ids,
             "finished_requests_ids": self.finished_requests_ids,
@@ -137,11 +122,7 @@ class ModelInputForNPUWithSamplingMetadata(ModelInputForNPU):
         tensor_dict = {
             "input_tokens": self.input_tokens,
             "input_positions": self.input_positions,
-            "lora_requests": self.lora_requests,
-            "lora_mapping": self.lora_mapping,
             "multi_modal_kwargs": self.multi_modal_kwargs,
-            "prompt_adapter_mapping": self.prompt_adapter_mapping,
-            "prompt_adapter_requests": self.prompt_adapter_requests,
             "virtual_engine": self.virtual_engine,
             "request_ids_to_seq_ids": self.request_ids_to_seq_ids,
             "finished_requests_ids": self.finished_requests_ids,
@@ -183,11 +164,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
             self.query_lens[0] = 0  # type: ignore
             self.context_lens[0] = 0  # type: ignore
             self.curr_sliding_window_blocks[0] = 0  # type: ignore
-            self.lora_index_mapping.clear()  # type: ignore
-            self.lora_prompt_mapping.clear()  # type: ignore
-            self.lora_requests.clear()  # type: ignore
-            self.prompt_adapter_index_mapping.clear()  # type: ignore
-            self.prompt_adapter_prompt_mapping.clear()  # type: ignore
 
         def __init__(
             self,
@@ -217,16 +193,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
             context_lens: Optional[List[int]] = None,
             # The current sliding window block.
             curr_sliding_window_blocks: Optional[List[int]] = None,
-
-            # LoRA inputs.
-            lora_index_mapping: Optional[List[List[int]]] = None,
-            lora_prompt_mapping: Optional[List[List[int]]] = None,
-            lora_requests: Optional[Set[LoRARequest]] = None,
-
-            # Prompt adapter inputs.
-            prompt_adapter_index_mapping: Optional[List[int]] = None,
-            prompt_adapter_prompt_mapping: Optional[List[int]] = None,
-            prompt_adapter_request: Optional[PromptAdapterRequest] = None,
 
             # Multi-modal inputs.
             multi_modal_kwargs: Optional[MultiModalKwargs] = None,
@@ -308,33 +274,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
                         for seq_id in range(len(self.seq_ids)):
                             self.curr_sliding_window_blocks[seq_id] = 0
 
-                    if lora_index_mapping:
-                        self.lora_index_mapping = lora_index_mapping
-                    else:
-                        self.lora_index_mapping.clear()
-
-                    if lora_prompt_mapping:
-                        self.lora_prompt_mapping = lora_prompt_mapping
-                    else:
-                        self.lora_prompt_mapping.clear()
-
-                    if lora_requests:
-                        self.lora_requests = lora_requests
-                    else:
-                        self.lora_requests.clear()
-
-                    if prompt_adapter_index_mapping:
-                        self.prompt_adapter_index_mapping = \
-                            prompt_adapter_index_mapping
-                    else:
-                        self.prompt_adapter_index_mapping.clear()
-
-                    if prompt_adapter_prompt_mapping:
-                        self.prompt_adapter_prompt_mapping = \
-                            prompt_adapter_prompt_mapping
-                    else:
-                        self.prompt_adapter_prompt_mapping.clear()
-
             else:
                 self.input_tokens = input_tokens or []
                 self.input_positions = input_positions or []
@@ -347,16 +286,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
                 self.curr_sliding_window_blocks = \
                     curr_sliding_window_blocks or []
 
-                self.lora_index_mapping = lora_index_mapping or []
-                self.lora_prompt_mapping = lora_prompt_mapping or []
-                self.lora_requests = lora_requests or set()
-
-                self.prompt_adapter_index_mapping = (
-                    prompt_adapter_index_mapping or [])
-                self.prompt_adapter_prompt_mapping = (
-                    prompt_adapter_prompt_mapping or [])
-
-            self.prompt_adapter_request = prompt_adapter_request
             self.multi_modal_kwargs = multi_modal_kwargs
             self.multi_modal_placeholder_maps = multi_modal_placeholder_maps
             self.prefix_cache_hit = prefix_cache_hit
@@ -379,9 +308,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
             self.context_lens = [0] * self.n_seqs
             self.curr_sliding_window_blocks = [0] * self.n_seqs
 
-            self.lora_index_mapping = []
-            self.lora_prompt_mapping = []
-
     def __init__(self,
                  runner,
                  finished_requests_ids: Optional[List[str]] = None):
@@ -392,12 +318,10 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
             self._compute_lens,
             self._compute_for_prefix_cache_hit,
             self._compute_for_sliding_window,
-            self._compute_lora_input,
         ]
         # Compute functions for each sequence group.
         # WARNING: The order of the functions matters!
         self.per_seq_group_compute_fns = [
-            self._compute_prompt_adapter_input,
             self._compute_multi_modal_input,
         ]
 
@@ -407,9 +331,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
         self.scheduler_config = self.runner.scheduler_config
         self.sliding_window = self.runner.sliding_window
         self.block_size = self.runner.block_size
-        self.enable_lora = self.runner.lora_config is not None
-        self.enable_prompt_adapter = (self.runner.prompt_adapter_config
-                                      is not None)
         self.multi_modal_input_mapper = self.runner.multi_modal_input_mapper
         self.finished_requests_ids = finished_requests_ids
         self.decode_only = True
@@ -604,46 +525,7 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
 
         # Attention metadata.
         attn_metadata = self.attn_metadata_builder.build(
-            seq_lens, query_lens, 0, batch_size)
-
-        # LoRA data.
-        lora_requests = set()
-        lora_mapping = None
-        if self.enable_lora:
-            lora_requests = set(r for data in self.inter_data_list
-                                for r in data.lora_requests)
-            lora_index_mapping = flatten_2d_lists([
-                flatten_2d_lists(inter_data.lora_index_mapping)
-                for inter_data in self.inter_data_list
-            ])
-            lora_prompt_mapping = flatten_2d_lists([
-                flatten_2d_lists(inter_data.lora_prompt_mapping)
-                for inter_data in self.inter_data_list
-            ])
-            lora_mapping = LoRAMapping(
-                **dict(index_mapping=lora_index_mapping,
-                       prompt_mapping=lora_prompt_mapping,
-                       is_prefill=not self.decode_only))
-
-        # Prompt adapter data.
-        prompt_adapter_requests: Set[PromptAdapterRequest] = set()
-        prompt_adapter_mapping = None
-        if self.enable_prompt_adapter:
-            prompt_adapter_requests = set(
-                data.prompt_adapter_request for data in self.inter_data_list
-                if data.prompt_adapter_request is not None)
-            prompt_adapter_index_mapping = flatten_2d_lists([
-                inter_data.prompt_adapter_index_mapping
-                for inter_data in self.inter_data_list
-            ])
-            prompt_adapter_prompt_mapping = flatten_2d_lists([
-                inter_data.prompt_adapter_prompt_mapping
-                for inter_data in self.inter_data_list
-            ])
-            prompt_adapter_mapping = PromptAdapterMapping(
-                prompt_adapter_index_mapping,
-                prompt_adapter_prompt_mapping,
-            )
+            seq_lens, query_lens, -1, batch_size)
 
         # Multi-modal data.
         multi_modal_kwargs_list = [
@@ -658,13 +540,9 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
             attn_metadata=attn_metadata,
             seq_lens=seq_lens,
             query_lens=query_lens,
-            lora_mapping=lora_mapping,
-            lora_requests=lora_requests,
             multi_modal_kwargs=multi_modal_kwargs,
             request_ids_to_seq_ids=request_ids_to_seq_ids,
-            finished_requests_ids=self.finished_requests_ids,
-            prompt_adapter_mapping=prompt_adapter_mapping,
-            prompt_adapter_requests=prompt_adapter_requests)
+            finished_requests_ids=self.finished_requests_ids)
 
     def _compute_lens(self, inter_data: InterDataForSeqGroup, seq_idx: int,
                       seq_group_metadata: SequenceGroupMetadata):
@@ -800,54 +678,6 @@ class ModelInputForNPUBuilder(ModelRunnerInputBuilderBase[ModelInputForNPU]):
             seq_idx] = curr_sliding_window_block
         inter_data.seq_lens[seq_idx] = sliding_seq_len
 
-    def _compute_lora_input(self, inter_data: InterDataForSeqGroup,
-                            seq_idx: int,
-                            seq_group_metadata: SequenceGroupMetadata):
-        """If LoRA is enabled, compute LoRA index and prompt mapping."""
-        if not self.enable_lora:
-            return
-
-        lora_id = seq_group_metadata.lora_int_id
-        if lora_id > 0:
-            inter_data.lora_requests.add(seq_group_metadata.lora_request)
-        query_len = inter_data.query_lens[seq_idx]
-        inter_data.lora_index_mapping.append([lora_id] * query_len)
-        sampling_params = seq_group_metadata.sampling_params
-        if sampling_params and sampling_params.prompt_logprobs is not None:
-            inter_data.lora_prompt_mapping.append([lora_id] * query_len)
-        elif not self.chunked_prefill_enabled or seq_group_metadata.do_sample:
-            inter_data.lora_prompt_mapping.append([lora_id])
-        else:
-            inter_data.lora_prompt_mapping.append([])
-
-    def _compute_prompt_adapter_input(
-            self, inter_data: InterDataForSeqGroup,
-            seq_group_metadata: SequenceGroupMetadata):
-        """If prompt adapter is enabled, compute index and prompt mapping.
-        """
-        # Note that when is_prompt=True, we expect only one sequence
-        # in the group.
-        if not self.enable_prompt_adapter:
-            return
-
-        prompt_adapter_id = seq_group_metadata.prompt_adapter_id
-        if prompt_adapter_id <= 0 or not inter_data.is_prompt:
-            return
-
-        # We expect only one sequence in the group when is_prompt=True.
-        assert inter_data.n_seqs == 1
-        query_len = inter_data.query_lens[0]
-        inter_data.prompt_adapter_request = (
-            seq_group_metadata.prompt_adapter_request)
-
-        num_tokens = seq_group_metadata.prompt_adapter_num_virtual_tokens
-        inter_data.prompt_adapter_index_mapping = [
-            prompt_adapter_id
-        ] * num_tokens + [0] * (query_len - num_tokens)
-        inter_data.prompt_adapter_prompt_mapping = [prompt_adapter_id] * (
-            query_len if seq_group_metadata.sampling_params
-            and seq_group_metadata.sampling_params.prompt_logprobs else 1)
-
     def _compute_multi_modal_input(self, inter_data: InterDataForSeqGroup,
                                    seq_group_metadata: SequenceGroupMetadata):
         """If multi-modal data is given, add it to the input."""
@@ -977,9 +807,6 @@ class NPUModelRunnerBase(ModelRunnerBase[TModelInputForNPU]):
 
         # Lazy initialization
         self.model: nn.Module  # Set after load_model
-        # Set after load_model.
-        self.lora_manager: Optional[LRUCacheWorkerLoRAManager] = None
-        self.prompt_adapter_manager: LRUCacheWorkerPromptAdapterManager = None
 
         set_cpu_offload_max_bytes(
             int(self.cache_config.cpu_offload_gb * 1024**3))
@@ -1005,52 +832,6 @@ class NPUModelRunnerBase(ModelRunnerBase[TModelInputForNPU]):
         self.model_memory_usage = m.consumed_memory
         logger.info("Loading model weights took %.4f GB",
                     self.model_memory_usage / float(2**30))
-
-        if self.lora_config:
-            assert supports_lora(
-                self.model
-            ), f"{self.model.__class__.__name__} does not support LoRA yet."
-
-            if supports_multimodal(self.model):
-                logger.warning("Regarding multimodal models, vLLM currently "
-                               "only supports adding LoRA to language model.")
-            # It's necessary to distinguish between the max_position_embeddings
-            # of VLMs and LLMs.
-            if hasattr(self.model.config, "max_position_embeddings"):
-                max_pos_embeddings = self.model.config.max_position_embeddings
-            else:
-                max_pos_embeddings = (
-                    self.model.config.text_config.max_position_embeddings)
-
-            self.lora_manager = LRUCacheWorkerLoRAManager(
-                self.scheduler_config.max_num_seqs,
-                self.scheduler_config.max_num_batched_tokens,
-                self.vocab_size,
-                self.lora_config,
-                self.device,
-                self.model.embedding_modules,
-                self.model.embedding_padding_modules,
-                max_position_embeddings=max_pos_embeddings,
-            )
-            self.model = self.lora_manager.create_lora_manager(self.model)
-
-        if self.prompt_adapter_config:
-            self.prompt_adapter_manager = LRUCacheWorkerPromptAdapterManager(
-                self.scheduler_config.max_num_seqs,
-                self.scheduler_config.max_num_batched_tokens, self.device,
-                self.prompt_adapter_config)
-            self.model = (
-                self.prompt_adapter_manager.create_prompt_adapter_manager(
-                    self.model))
-
-        if self.vllm_config.compilation_config.level ==\
-            CompilationLevel.DYNAMO_AS_IS and supports_dynamo():
-            backend = self.vllm_config.compilation_config.init_backend(
-                self.vllm_config)
-            self.model = torch.compile(
-                self.model,
-                fullgraph=envs.VLLM_TEST_DYNAMO_FULLGRAPH_CAPTURE,
-                backend=backend)
 
     def save_sharded_state(
         self,
@@ -1122,29 +903,6 @@ class NPUModelRunnerBase(ModelRunnerBase[TModelInputForNPU]):
             max_num_batched_tokens = \
                 self.scheduler_config.max_num_batched_tokens
             max_num_seqs = self.scheduler_config.max_num_seqs
-            # This represents the maximum number of different requests
-            # that will have unique loras, an therefore the max amount of memory
-            # consumption create dummy lora request copies from the lora request
-            # passed in, which contains a lora from the lora warmup path.
-            dummy_lora_requests: List[LoRARequest] = []
-            dummy_lora_requests_per_seq: List[LoRARequest] = []
-            if self.lora_config:
-                assert self.lora_manager is not None
-                with self.lora_manager.dummy_lora_cache():
-                    for idx in range(self.lora_config.max_loras):
-                        lora_id = idx + 1
-                        dummy_lora_request = LoRARequest(
-                            lora_name=f"warmup_{lora_id}",
-                            lora_int_id=lora_id,
-                            lora_path="/not/a/real/path",
-                        )
-                        self.lora_manager.add_dummy_lora(dummy_lora_request,
-                                                         rank=LORA_WARMUP_RANK)
-                        dummy_lora_requests.append(dummy_lora_request)
-                    dummy_lora_requests_per_seq = [
-                        dummy_lora_requests[idx % len(dummy_lora_requests)]
-                        for idx in range(max_num_seqs)
-                    ]
 
             # Profile memory usage with max_num_sequences sequences and the
             # total number of tokens equal to max_num_batched_tokens.
@@ -1187,8 +945,7 @@ class NPUModelRunnerBase(ModelRunnerBase[TModelInputForNPU]):
                     seq_data={group_id: dummy_data.seq_data},
                     sampling_params=sampling_params,
                     block_tables=None,
-                    lora_request=dummy_lora_requests_per_seq[group_id]
-                    if dummy_lora_requests_per_seq else None,
+                    lora_request=None,
                     multi_modal_data=dummy_data.multi_modal_data,
                     multi_modal_placeholders=dummy_data.
                     multi_modal_placeholders,
@@ -1224,69 +981,44 @@ class NPUModelRunnerBase(ModelRunnerBase[TModelInputForNPU]):
             return
 
     def remove_all_loras(self):
-        if not self.lora_manager:
-            raise RuntimeError("LoRA is not enabled.")
-        self.lora_manager.remove_all_adapters()
+        raise RuntimeError("LoRA is not supported on NPU now.")
 
     def set_active_loras(self, lora_requests: Set[LoRARequest],
                          lora_mapping: LoRAMapping) -> None:
-        if not self.lora_manager:
-            raise RuntimeError("LoRA is not enabled.")
-        self.lora_manager.set_active_adapters(lora_requests, lora_mapping)
+        raise RuntimeError("LoRA is not supported on NPU now.")
 
     def add_lora(self, lora_request: LoRARequest) -> bool:
-        if not self.lora_manager:
-            raise RuntimeError("LoRA is not enabled.")
-        return self.lora_manager.add_adapter(lora_request)
+        raise RuntimeError("LoRA is not supported on NPU now.")
 
     def remove_lora(self, lora_id: int) -> bool:
-        if not self.lora_manager:
-            raise RuntimeError("LoRA is not enabled.")
-        return self.lora_manager.remove_adapter(lora_id)
+        raise RuntimeError("LoRA is not supported on NPU now.")
 
     def pin_lora(self, lora_id: int) -> bool:
-        if not self.lora_manager:
-            raise RuntimeError("LoRA is not enabled.")
-        return self.lora_manager.pin_adapter(lora_id)
+        raise RuntimeError("LoRA is not supported on NPU now.")
 
     def list_loras(self) -> Set[int]:
-        if not self.lora_manager:
-            raise RuntimeError("LoRA is not enabled.")
-        return self.lora_manager.list_adapters()
+        raise RuntimeError("LoRA is not supported on NPU now.")
 
     def remove_all_prompt_adapters(self):
-        if not self.prompt_adapter_manager:
-            raise RuntimeError("PromptAdapter is not enabled.")
-        self.prompt_adapter_manager.remove_all_adapters()
+        raise RuntimeError("PromptAdapter is not supported on NPU now.")
 
     def set_active_prompt_adapters(
             self, prompt_adapter_requests: Set[PromptAdapterRequest],
             prompt_adapter_mapping: PromptAdapterMapping) -> None:
-        if not self.prompt_adapter_manager:
-            raise RuntimeError("PromptAdapter is not enabled.")
-        self.prompt_adapter_manager.set_active_adapters(
-            prompt_adapter_requests, prompt_adapter_mapping)
+        raise RuntimeError("PromptAdapter is not supported on NPU now.")
 
     def add_prompt_adapter(
             self, prompt_adapter_request: PromptAdapterRequest) -> bool:
-        if not self.prompt_adapter_manager:
-            raise RuntimeError("PromptAdapter is not enabled.")
-        return self.prompt_adapter_manager.add_adapter(prompt_adapter_request)
+        raise RuntimeError("PromptAdapter is not supported on NPU now.")
 
     def remove_prompt_adapter(self, prompt_adapter_id: int) -> bool:
-        if not self.prompt_adapter_manager:
-            raise RuntimeError("PromptAdapter is not enabled.")
-        return self.prompt_adapter_manager.remove_adapter(prompt_adapter_id)
+        raise RuntimeError("PromptAdapter is not supported on NPU now.")
 
     def pin_prompt_adapter(self, prompt_adapter_id: int) -> bool:
-        if not self.prompt_adapter_manager:
-            raise RuntimeError("PromptAdapter is not enabled.")
-        return self.prompt_adapter_manager.pin_adapter(prompt_adapter_id)
+        raise RuntimeError("PromptAdapter is not supported on NPU now.")
 
     def list_prompt_adapters(self) -> Set[int]:
-        if not self.prompt_adapter_manager:
-            raise RuntimeError("PromptAdapter is not enabled.")
-        return self.prompt_adapter_manager.list_adapters()
+        raise RuntimeError("PromptAdapter is not supported on NPU now.")
 
     @property
     def vocab_size(self) -> int:
@@ -1362,19 +1094,6 @@ class NPUModelRunner(NPUModelRunnerBase[ModelInputForNPUWithSamplingMetadata]):
     ) -> Optional[Union[List[SamplerOutput], IntermediateTensors]]:
         if num_steps > 1:
             raise ValueError("num_steps > 1 is not supported in ModelRunner")
-
-        if self.lora_config:
-            assert model_input.lora_requests is not None
-            assert model_input.lora_mapping is not None
-            self.set_active_loras(model_input.lora_requests,
-                                  model_input.lora_mapping)
-
-        if self.prompt_adapter_config:
-            assert model_input.prompt_adapter_requests is not None
-            assert model_input.prompt_adapter_mapping is not None
-            self.set_active_prompt_adapters(
-                model_input.prompt_adapter_requests,
-                model_input.prompt_adapter_mapping)
 
         self.attn_state.begin_forward(model_input)
 
@@ -1565,29 +1284,6 @@ class NPUModelRunner(NPUModelRunnerBase[ModelInputForNPUWithSamplingMetadata]):
         sampling_params = SamplingParams(top_p=0.99, top_k=self.vocab_size - 1)
         max_num_batched_tokens = self.scheduler_config.max_num_batched_tokens
         max_num_seqs = self.scheduler_config.max_num_seqs
-        # This represents the maximum number of different requests
-        # that will have unique loras, an therefore the max amount of memory
-        # consumption create dummy lora request copies from the lora request
-        # passed in, which contains a lora from the lora warmup path.
-        dummy_lora_requests: List[LoRARequest] = []
-        dummy_lora_requests_per_seq: List[LoRARequest] = []
-        if self.lora_config:
-            assert self.lora_manager is not None
-            with self.lora_manager.dummy_lora_cache():
-                for idx in range(self.lora_config.max_loras):
-                    lora_id = idx + 1
-                    dummy_lora_request = LoRARequest(
-                        lora_name=f"warmup_{lora_id}",
-                        lora_int_id=lora_id,
-                        lora_path="/not/a/real/path",
-                    )
-                    self.lora_manager.add_dummy_lora(dummy_lora_request,
-                                                     rank=LORA_WARMUP_RANK)
-                    dummy_lora_requests.append(dummy_lora_request)
-                dummy_lora_requests_per_seq = [
-                    dummy_lora_requests[idx % len(dummy_lora_requests)]
-                    for idx in range(max_num_seqs)
-                ]
 
         # Profile memory usage with max_num_sequences sequences and the total
         # number of tokens equal to max_num_batched_tokens.
@@ -1630,8 +1326,7 @@ class NPUModelRunner(NPUModelRunnerBase[ModelInputForNPUWithSamplingMetadata]):
                 seq_data={group_id: dummy_data.seq_data},
                 sampling_params=sampling_params,
                 block_tables=None,
-                lora_request=dummy_lora_requests_per_seq[group_id]
-                if dummy_lora_requests_per_seq else None,
+                lora_request=None,
                 multi_modal_data=dummy_data.multi_modal_data,
                 multi_modal_placeholders=dummy_data.multi_modal_placeholders,
             )
