@@ -23,17 +23,16 @@ git commit -sm "your commit info"
 
 Only specific types of PRs will be reviewed. The PR title is prefixed appropriately to indicate the type of change. Please use one of the following:
 
-- `[Platform]` for new features or optimization in platform.
 - `[Attention]` for new features or optimization in attention.
 - `[Communicator]` for new features or optimization in communicators.
-- `[Model Runner]` for new features or optimization in model runner.
+- `[ModelRunner]` for new features or optimization in model runner.
+- `[Platform]` for new features or optimization in platform.
 - `[Worker]` for new features or optimization in worker.
-- `[Ops]` for adding a new ops or improving an existing ops. Op name should appear in the title.
-- `[Model]` for adding a new model or improving an existing model. Model name should appear in the title.
+- `[Core]` for new features or optimization  in the core vllm-ascend logic (such as platform, attention, communicators, model runner)
+- `[Kernel]` changes affecting compute kernels and ops.
 - `[Bugfix]` for bug fixes.
 - `[Doc]` for documentation fixes and improvements.
-- `[Tool]` for format scripts or other tools.
-- `[UT]` for unit tests.
+- `[Test]` for tests (such as unit tests).
 - `[CI]` for build or continuous integration improvements.
 - `[Misc]` for PRs that do not fit the above categories. Please use this sparingly.
 
