@@ -8,7 +8,6 @@ from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set,
 import torch
 import torch.distributed
 import torch.nn as nn
-
 from vllm.attention import AttentionMetadata, get_attn_backend
 from vllm.attention.backends.utils import CommonAttentionState
 from vllm.config import VllmConfig
