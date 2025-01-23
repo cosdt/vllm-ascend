@@ -27,7 +27,7 @@ from vllm.model_executor.layers.linear import (LinearBase, LinearMethodBase,
 from vllm.model_executor.layers.quantization import (register_quantization_config)
 from vllm.model_executor.layers.quantization.base_config import (QuantizationConfig)
 from vllm.model_executor.parameter import (BasevLLMParameter,
-                                           GroupQuantScaleParameter,
+                                           ChannelQuantScaleParameter,
                                            PackedvLLMParameter,
                                            ModelWeightParameter)
 try:
@@ -150,9 +150,8 @@ class AscendLinearMethod(LinearMethodBase):
             if perchannel_name in weights.keys():
                 layer.register_parameter(
                     perchannel_name,
-                    GroupQuantScaleParameter(
+                    ChannelQuantScaleParameter(
                         data=weights[perchannel_name],
-                        input_dim=0,
                         output_dim=0,
                         weight_loader=weight_loader
                     )
