@@ -20,20 +20,15 @@ from typing import Any, Dict, List, Optional
 import torch
 import torch_npu
 
-from vllm import _custom_ops as ops
 from vllm.logger import init_logger
-from vllm.model_executor.layers.linear import (LinearBase, LinearMethodBase,
-                                               UnquantizedLinearMethod, RowParallelLinear)
+from vllm.model_executor.layers.linear import (LinearBase, LinearMethodBase)
 from vllm.model_executor.layers.quantization import (register_quantization_config)
 from vllm.model_executor.layers.quantization.base_config import (QuantizationConfig)
 from vllm.model_executor.parameter import (BasevLLMParameter,
                                            ChannelQuantScaleParameter,
                                            PackedvLLMParameter,
                                            ModelWeightParameter)
-try:
-    from mindie_turbo import MindIETurboQuantizer
-except:
-    NotImplementedError("Currently Ascend quantization only supports implementations from MindIETurbo plugins.")
+from .quantizer import AscendQuantizer
 
 logger = init_logger(__name__)
 
@@ -43,7 +38,7 @@ class AscendQuantConfig(QuantizationConfig):
 
     def __init__(self, quant_config: Dict[str, Any]):
         self.quant_config = quant_config
-        self.quantizer = MindIETurboQuantizer.get_quantizer(quant_config)
+        self.quantizer = AscendQuantizer.get_quantizer(quant_config)
 
     def __repr__(self) -> str:
         return "AscendQuantConfig:\n" + super().__repr__()
