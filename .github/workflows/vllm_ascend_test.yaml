@@ -46,7 +46,6 @@ jobs:
         --device /dev/hisi_hdc
       env:
         HF_ENDPOINT: https://hf-mirror.com
-        VLLM_USE_MODELSCOPE: true
     steps:
       - name: Check npu driver
         run: |
@@ -87,6 +86,7 @@ jobs:
 
       - name: Install vllm_ascend
         run: |
+          pip install -r requirements-dev.txt
           pip install -e .
 
       - name: Run test
